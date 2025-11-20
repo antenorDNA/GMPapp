@@ -155,15 +155,21 @@
                     <i class="fas fa-clipboard-list w-5"></i> Audit Trail
                 </button>
             </nav>
-            <div class="p-4 bg-slate-800 border-t border-slate-700">
+            
+            <!-- USER PROFILE SECTION (MODIFIED) -->
+            <div onclick="app.modals.userProfile.show()" class="p-4 bg-slate-800 border-t border-slate-700 cursor-pointer hover:bg-slate-700 transition group relative">
+                 <!-- Tooltip -->
+                 <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">Gestisci Profilo</div>
+                 
                 <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-lg" id="user-avatar">U</div>
+                    <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-lg text-white" id="user-avatar">U</div>
                     <div class="overflow-hidden">
-                        <div class="text-sm font-bold truncate" id="user-name">User Name</div>
+                        <div class="text-sm font-bold truncate text-white" id="user-name">User Name</div>
                         <div class="text-xs text-slate-400 truncate" id="user-role">Role</div>
                     </div>
+                    <i class="fas fa-cog text-slate-500 ml-auto group-hover:text-white transition"></i>
                 </div>
-                <button onclick="app.logout()" class="w-full bg-red-600/20 hover:bg-red-600 text-red-200 hover:text-white text-sm py-2 rounded border border-red-600/30 transition">
+                <button onclick="event.stopPropagation(); app.logout()" class="w-full bg-red-600/20 hover:bg-red-600 text-red-200 hover:text-white text-sm py-2 rounded border border-red-600/30 transition">
                     <i class="fas fa-sign-out-alt mr-2"></i> Logout
                 </button>
             </div>
@@ -218,7 +224,7 @@
                     </div>
                 </div>
 
-                <!-- SECURITY SETTINGS (NEW) -->
+                <!-- SECURITY SETTINGS -->
                 <div id="view-security" class="view-section hidden space-y-6">
                     <div class="bg-red-50 border border-red-200 p-4 rounded-lg mb-6">
                         <h3 class="text-red-800 font-bold flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> Area Critica CFR 21 Part 11</h3>
@@ -366,6 +372,53 @@
 
     <!-- Modals -->
     
+    <!-- MODAL USER PROFILE (NEW) -->
+    <div id="modal-user-profile" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800">Profilo Utente</h3>
+                    <p class="text-sm text-slate-500">Gestione credenziali e info</p>
+                </div>
+                <button onclick="document.getElementById('modal-user-profile').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs text-slate-500 uppercase font-bold">ID Utente</span>
+                    <span class="text-sm font-bold text-slate-700" id="profile-uid">...</span>
+                </div>
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs text-slate-500 uppercase font-bold">Nome</span>
+                    <span class="text-sm font-bold text-slate-700" id="profile-name">...</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-xs text-slate-500 uppercase font-bold">Ruolo</span>
+                    <span class="text-sm font-bold text-blue-700" id="profile-role">...</span>
+                </div>
+            </div>
+
+            <form id="profile-change-pass-form" class="space-y-4">
+                <h4 class="font-bold text-sm text-slate-700 border-b pb-2">Modifica Password</h4>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1 required">Vecchia Password</label>
+                    <input type="password" id="profile-old-pass" class="w-full p-2 border rounded text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1 required">Nuova Password</label>
+                    <input type="password" id="profile-new-pass" class="w-full p-2 border rounded text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1 required">Conferma Nuova Password</label>
+                    <input type="password" id="profile-confirm-pass" class="w-full p-2 border rounded text-sm" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition">
+                    Aggiorna Password
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- MODAL FORCE PASSWORD CHANGE -->
     <div id="modal-force-password-change" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 border-t-4 border-orange-500">
@@ -607,7 +660,7 @@
             db: { users:[], products:[], archives:[], cupboards:[], shelves:[], binders:[], batchRecords:[], loans:[], auditTrail:[], systemSettings: [] },
             currentUser: null,
             listeners: [],
-            loadedCollections: new Set(), // FIX: Usa Set invece di contatore numerico
+            loadedCollections: new Set(), 
             
             init: async () => {
                 app.renderTime();
@@ -620,7 +673,7 @@
 
                 document.getElementById('loading-text').textContent = "Autenticazione...";
 
-                // Safety Timeout (3s for better UX on slow connections)
+                // Safety Timeout 
                 setTimeout(() => {
                     const overlay = document.getElementById('loading-overlay');
                     if(!overlay.classList.contains('fade-out') && !overlay.classList.contains('hidden')) {
@@ -649,6 +702,7 @@
                 document.getElementById('login-form').addEventListener('submit', app.handleLogin);
                 document.getElementById('force-change-form').addEventListener('submit', app.handleForcePasswordChange);
                 document.getElementById('security-settings-form').addEventListener('submit', app.handleSaveSecuritySettings);
+                document.getElementById('profile-change-pass-form').addEventListener('submit', app.handleProfilePasswordChange);
                 document.getElementById('esig-form').addEventListener('submit', app.handleESig);
                 document.getElementById('dual-esig-form').addEventListener('submit', app.handleDualESig);
                 document.getElementById('create-br-form').addEventListener('submit', app.handleCreateBR);
@@ -665,7 +719,6 @@
                 app.listeners.forEach(u => u());
                 app.listeners = [];
                 
-                // FIX: Reset Set
                 app.loadedCollections.clear();
 
                 const collections = ['users', 'products', 'archives', 'cupboards', 'shelves', 'binders', 'batchRecords', 'loans', 'auditTrail', 'systemSettings'];
@@ -681,7 +734,6 @@
                         if(colName === 'auditTrail') data.sort((a,b) => new Date(b.ts) - new Date(a.ts));
                         app.db[colName] = data;
                         
-                        // FIX: Aggiungi al Set invece di incrementare
                         app.loadedCollections.add(colName);
                         
                         // Update debug info
@@ -692,7 +744,7 @@
                         app.refreshCurrentView();
                     }, (error) => {
                         console.error(`Sync error ${colName}:`, error);
-                        app.loadedCollections.add(colName); // Conta come caricato anche se errore per non bloccare
+                        app.loadedCollections.add(colName); 
                         app.checkCompletion(); 
                     });
                     
@@ -701,7 +753,6 @@
             },
 
             checkCompletion: (force = false) => {
-                // FIX: Controllo su size del Set
                 if(force || app.loadedCollections.size >= app.totalCollections) {
                      const overlay = document.getElementById('loading-overlay');
                      if(!overlay.classList.contains('fade-out')) {
@@ -722,7 +773,7 @@
                      }
                 }
             },
-            // ... (Il resto del codice rimane invariato)
+
             checkSeed: async () => {
                 if(app.db.users && app.db.users.length === 0) {
                     console.log("Seeding Database...");
@@ -760,7 +811,6 @@
             dbSet: async (colName, docId, data) => {
                 if(!auth.currentUser) return;
                 try {
-                    // FIX CRITICO: Path Documento = 4 Segmenti (Coll/Doc/Coll/Doc)
                     const ref = doc(db, ...DB_PATH, colName, docId);
                     await setDoc(ref, data);
                 } catch(e) { app.handleError(e); }
@@ -769,7 +819,6 @@
             dbDelete: async (colName, docId) => {
                 if(!auth.currentUser) return;
                  try {
-                    // FIX CRITICO: Path Documento
                     const ref = doc(db, ...DB_PATH, colName, docId);
                     await deleteDoc(ref);
                 } catch(e) { app.handleError(e); }
@@ -788,7 +837,6 @@
                     target: targetId,
                     details: details
                 };
-                // FIX CRITICO: Path
                 const ref = collection(db, ...DB_PATH, 'auditTrail');
                 await addDoc(ref, entry);
             },
@@ -825,6 +873,7 @@
                 document.getElementById('app-layout').classList.add('hidden');
                 document.getElementById('login-screen').classList.remove('hidden');
                 document.getElementById('modal-force-password-change').classList.add('hidden');
+                document.getElementById('modal-user-profile').classList.add('hidden');
             },
             showApp: () => {
                 document.getElementById('login-screen').classList.add('hidden');
@@ -833,6 +882,12 @@
                 document.getElementById('user-name').textContent = app.currentUser.name;
                 document.getElementById('user-role').textContent = app.currentUser.role;
                 document.getElementById('user-avatar').textContent = app.currentUser.name.charAt(0);
+                
+                // Update Profile Modal Info
+                document.getElementById('profile-uid').textContent = app.currentUser.id;
+                document.getElementById('profile-name').textContent = app.currentUser.name;
+                document.getElementById('profile-role').textContent = app.currentUser.role;
+                
                 document.getElementById('esig-username').value = app.currentUser.id;
                 document.getElementById('dual-user1').value = app.currentUser.id;
                 app.applyRBAC();
@@ -862,7 +917,7 @@
                 if(view === 'batch-records' && subAction === 'create') app.modals.createBR.show();
             },
 
-            // --- SECURITY SETTINGS LOGIC ---
+            // --- SECURITY & PROFILE ---
             getSecurityPolicy: () => {
                 return app.db.systemSettings.find(s => s.id === 'security') || { minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3 };
             },
@@ -890,6 +945,46 @@
                      await app.dbSet('systemSettings', 'security', newPolicy);
                      await app.logAudit('SEC_POLICY_UPDATE', 'SYSTEM', `Policy updated. Reason: ${comment}`);
                      app.toast('Policy di Sicurezza Aggiornata', 'success');
+                });
+            },
+            handleProfilePasswordChange: async (e) => {
+                e.preventDefault();
+                const oldPass = document.getElementById('profile-old-pass').value;
+                const newPass = document.getElementById('profile-new-pass').value;
+                const confirmPass = document.getElementById('profile-confirm-pass').value;
+
+                if(oldPass !== app.currentUser.pass) return app.toast('Vecchia Password Errata', 'error');
+                if(newPass !== confirmPass) return app.toast('Le nuove password non coincidono', 'error');
+                if(newPass === oldPass) return app.toast('La nuova password deve essere diversa', 'error');
+                
+                const error = app.validatePassword(newPass);
+                if(error) return app.toast(`Policy Violata: ${error}`, 'error');
+
+                const user = {...app.currentUser};
+                user.pass = newPass;
+                delete user.forceReset;
+
+                await app.dbSet('users', user.id, user);
+                await app.logAudit('PASS_CHANGE_USER', user.id, 'User changed own password');
+                
+                app.currentUser = user;
+                document.getElementById('modal-user-profile').classList.add('hidden');
+                e.target.reset();
+                app.toast('Password Aggiornata', 'success');
+            },
+            resetUserPassword: (uid) => {
+                if(!confirm(`Sei sicuro di voler resettare la password per l'utente ${uid}?`)) return;
+                
+                app.triggerESig('ADMIN_RESET_PASS', async (comment) => {
+                    const user = app.db.users.find(u => u.id === uid);
+                    if(!user) return;
+                    
+                    user.pass = 'password123';
+                    user.forceReset = true; // Force change on next login
+                    
+                    await app.dbSet('users', uid, user);
+                    await app.logAudit('ADMIN_PASS_RESET', uid, `Reset by Admin. Reason: ${comment}`);
+                    app.toast('Password Resettata a Default', 'success');
                 });
             },
 
@@ -1183,6 +1278,30 @@
                     </tr>`;
                 });
             },
+            renderLoans: () => {
+                const pendingList = document.getElementById('loans-pending-list');
+                const approvalPanel = document.getElementById('loan-approvals-panel');
+                // Logica aggiornata: Tutte le richieste pending vengono mostrate a Supervisor/Admin
+                if(['Supervisore', 'Amministratore'].includes(app.currentUser.role)) {
+                    const pendings = app.db.loans.filter(l => l.status === 'PENDING');
+                    approvalPanel.classList.toggle('hidden', pendings.length === 0);
+                    pendingList.innerHTML = pendings.map(l => {
+                        const br = app.db.batchRecords.find(b => b.id === l.brId);
+                        return `<div class="bg-white p-3 rounded border border-yellow-300 flex justify-between items-center"><div><div class="font-bold text-sm">${br.wo}</div><div class="text-xs text-slate-500">Richiesto da: ${l.userId}</div></div><div class="flex gap-2"><button onclick="app.rejectLoan('${l.id}')" class="text-red-600 text-xs">Rifiuta</button><button onclick="app.approveLoan('${l.id}')" class="bg-green-600 text-white text-xs px-3 py-1 rounded">Approva</button></div></div>`;
+                    }).join('');
+                } else { approvalPanel.classList.add('hidden'); }
+                
+                const tbody = document.getElementById('loans-active-body');
+                tbody.innerHTML = '';
+                app.db.loans.filter(l => l.status === 'ACTIVE').forEach(l => {
+                    const br = app.db.batchRecords.find(b => b.id === l.brId);
+                    // Per restituire: Se sei l'utente che l'ha preso O se sei un Admin (override)
+                    let canReturn = (l.userId === app.currentUser.id || app.currentUser.role === 'Amministratore');
+                    let action = canReturn ? `<button onclick="app.returnLoan('${l.id}')" class="text-blue-600 hover:underline text-sm font-bold">Restituisci</button>` : `<span class="text-slate-400 italic text-xs">In uso da altri</span>`;
+                    tbody.innerHTML += `<tr><td class="p-3 font-bold text-slate-700">${br.wo}</td><td class="p-3"><span class="bg-slate-100 px-2 py-1 rounded text-xs font-mono">${l.userId}</span></td><td class="p-3 text-xs">${new Date(l.outDate).toLocaleString()}</td><td class="p-3 text-xs">${l.approvedBy || '-'}</td><td class="p-3"><span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold">Attivo</span></td><td class="p-3 text-right">${action}</td></tr>`;
+                });
+            },
+            // ... rest of standard render functions (archive, audit, users) ...
             renderArchiveTree: () => {
                 const container = document.getElementById('archive-tree');
                 container.innerHTML = '';
@@ -1326,7 +1445,11 @@
                      const isSelf = u.id === app.currentUser.id;
                      const btnText = u.status === 'Attivo' ? 'Blocca' : 'Sblocca';
                      const btnClass = u.status === 'Attivo' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700';
-                     const actionBtn = isSelf ? '<span class="text-xs text-gray-400">Tu</span>' : `<button onclick="app.toggleUserStatus('${u.id}')" class="${btnClass} px-3 py-1 rounded text-xs font-bold">${btnText}</button>`;
+                     // Added Reset button for Admins
+                     const resetBtn = isSelf ? '' : `<button onclick="app.resetUserPassword('${u.id}')" class="bg-orange-100 text-orange-700 px-3 py-1 rounded text-xs font-bold ml-2" title="Reset Password"><i class="fas fa-key"></i></button>`;
+                     
+                     const actionBtn = isSelf ? '<span class="text-xs text-gray-400">Tu</span>' : `<div class="flex items-center"><button onclick="app.toggleUserStatus('${u.id}')" class="${btnClass} px-3 py-1 rounded text-xs font-bold">${btnText}</button>${resetBtn}</div>`;
+                     
                      return `<tr class="hover:bg-slate-50"><td class="p-4 font-mono text-sm text-slate-600">${u.id}</td><td class="p-4 font-bold text-slate-700">${u.name}</td><td class="p-4"><span class="px-2 py-1 rounded bg-slate-100 text-xs">${u.role}</span></td><td class="p-4"><span class="${u.status === 'Attivo' ? 'text-green-600' : 'text-red-600'} font-bold text-xs">● ${u.status}</span></td><td class="p-4">${actionBtn}</td></tr>`;
                 }).join('');
             },
@@ -1353,7 +1476,8 @@
             modals: {
                 createBR: { show: () => document.getElementById('modal-create-br').classList.remove('hidden') },
                 createUser: { show: () => document.getElementById('modal-create-user').classList.remove('hidden') },
-                addArchive: { show: () => { app.updateParentSelect(); document.getElementById('modal-add-archive').classList.remove('hidden'); } }
+                addArchive: { show: () => { app.updateParentSelect(); document.getElementById('modal-add-archive').classList.remove('hidden'); } },
+                userProfile: { show: () => document.getElementById('modal-user-profile').classList.remove('hidden') }
             }
         };
 
