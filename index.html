@@ -38,7 +38,10 @@
         <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mb-4"></div>
         <h2 class="text-xl font-bold text-slate-700">Connessione al Cloud...</h2>
         <p class="text-slate-500 text-sm" id="loading-text">Inizializzazione...</p>
-        <!-- Pulsante di emergenza se si blocca -->
+        <div id="config-error-msg" class="hidden mt-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded text-xs max-w-md text-center">
+            <strong>Errore Configurazione:</strong> <span id="config-error-detail"></span><br>
+            Verifica di aver abilitato "Anonymous Auth" nella Firebase Console.
+        </div>
         <button onclick="app.checkCompletion(true)" class="mt-8 text-xs text-slate-400 underline hover:text-slate-600 cursor-pointer z-50">
             Forza avvio (se bloccato)
         </button>
@@ -515,18 +518,25 @@
 			measurementId: "G-WLWZ8DH30P"
         };
         
-        const appId = 'gmp-public-demo'; // Nome fisso per l'app pubblica
+        // App ID per i dati pubblici
+        const publicAppId = 'gmp-public-demo'; 
         
         // Init Firebase
         let auth, db;
+        
         // Simple check if config is filled (not strict validation)
         if (firebaseConfig.apiKey !== "INSERISCI_API_KEY_QUI") {
-            const fbApp = initializeApp(firebaseConfig);
-            auth = getAuth(fbApp);
-            db = getFirestore(fbApp);
+            try {
+                const fbApp = initializeApp(firebaseConfig);
+                auth = getAuth(fbApp);
+                db = getFirestore(fbApp);
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                alert("Errore inizializzazione Firebase: " + e.message);
+            }
         } else {
             console.error("Firebase Config Mancante! Compila la sezione nello script.");
-            alert("Attenzione: Devi configurare Firebase nel codice HTML per far funzionare l'app!");
+            // alert("Attenzione: Devi configurare Firebase nel codice HTML per far funzionare l'app!");
         }
 
         const SEED_DATA = {
@@ -579,6 +589,7 @@
 
                 document.getElementById('loading-text').textContent = "Autenticazione...";
 
+                // Safety Timeout
                 setTimeout(() => {
                     const overlay = document.getElementById('loading-overlay');
                     if(!overlay.classList.contains('fade-out') && !overlay.classList.contains('hidden')) {
@@ -592,6 +603,9 @@
                 } catch(e) {
                     console.error("Auth Failed", e);
                     document.getElementById('loading-text').textContent = "Errore Auth: " + e.message;
+                    // Show detailed error helper
+                    document.getElementById('config-error-msg').classList.remove('hidden');
+                    document.getElementById('config-error-detail').textContent = e.code || e.message;
                     return;
                 }
 
@@ -602,6 +616,7 @@
                     }
                 });
 
+                // Event Listeners
                 document.getElementById('login-form').addEventListener('submit', app.handleLogin);
                 document.getElementById('force-change-form').addEventListener('submit', app.handleForcePasswordChange);
                 document.getElementById('security-settings-form').addEventListener('submit', app.handleSaveSecuritySettings);
@@ -626,8 +641,10 @@
                 app.totalCollections = collections.length;
 
                 collections.forEach(colName => {
-                    // Public Path Simplification for GitHub Demo
-                    const colRef = collection(db, 'gmp-app-data', colName); 
+                    // FIX: Path must have ODD segments (3 segments: Coll/Doc/Coll)
+                    // Old error was: 'gmp-app-data/users' (2 segments) -> Invalid
+                    // New path: 'gmp-app-data/public-instance/users' (3 segments) -> Valid
+                    const colRef = collection(db, 'gmp-app-data', 'public-instance', colName); 
                     
                     const unsub = onSnapshot(colRef, (snapshot) => {
                         const data = [];
@@ -640,7 +657,7 @@
                         app.refreshCurrentView();
                     }, (error) => {
                         console.error(`Sync error ${colName}:`, error);
-                        app.checkCompletion();
+                        app.checkCompletion(); // Continue anyway
                     });
                     
                     app.listeners.push(unsub);
@@ -659,9 +676,10 @@
                             if(!app.currentUser) {
                                 document.getElementById('login-screen').classList.remove('hidden');
                             } else {
-                                // If user was already logged in but sync refreshed, re-check force pass logic
+                                // Check if user needs force reset on refresh
                                 if (app.currentUser.pass === 'password123' || app.currentUser.forceReset) {
-                                    // Should handle via standard login flow primarily, but good safety
+                                    app.tempUserForReset = app.currentUser;
+                                    app.showForceChangeModal(app.currentUser);
                                 }
                                 app.refreshCurrentView();
                             }
@@ -675,8 +693,8 @@
                 if(app.db.users && app.db.users.length === 0) {
                     console.log("Seeding Database...");
                     const addToCol = async (col, item) => {
-                        // Public Path Simplification
-                        const ref = collection(db, 'gmp-app-data', col); 
+                        // FIX: Path must match startSync (3 segments)
+                        const ref = collection(db, 'gmp-app-data', 'public-instance', col); 
                         if(item.id) await setDoc(doc(ref, item.id), item);
                         else await addDoc(ref, item);
                     };
@@ -709,8 +727,8 @@
             dbSet: async (colName, docId, data) => {
                 if(!auth.currentUser) return;
                 try {
-                    // Public Path Simplification
-                    const ref = doc(db, 'gmp-app-data', colName, docId);
+                    // FIX: Path (4 segments for doc: Coll/Doc/Coll/Doc)
+                    const ref = doc(db, 'gmp-app-data', 'public-instance', colName, docId);
                     await setDoc(ref, data);
                 } catch(e) { app.handleError(e); }
             },
@@ -718,8 +736,8 @@
             dbDelete: async (colName, docId) => {
                 if(!auth.currentUser) return;
                  try {
-                    // Public Path Simplification
-                    const ref = doc(db, 'gmp-app-data', colName, docId);
+                    // FIX: Path
+                    const ref = doc(db, 'gmp-app-data', 'public-instance', colName, docId);
                     await deleteDoc(ref);
                 } catch(e) { app.handleError(e); }
             },
@@ -737,8 +755,8 @@
                     target: targetId,
                     details: details
                 };
-                // Public Path Simplification
-                const ref = collection(db, 'gmp-app-data', 'auditTrail');
+                // FIX: Path
+                const ref = collection(db, 'gmp-app-data', 'public-instance', 'auditTrail');
                 await addDoc(ref, entry);
             },
 
@@ -752,7 +770,6 @@
                 if(user) {
                     if(user.status !== 'Attivo') return app.toast('Account bloccato', 'error');
                     
-                    // CHECK FOR FORCED PASSWORD CHANGE (Default pass or Flag)
                     if (user.pass === 'password123' || user.forceReset) {
                         app.tempUserForReset = user;
                         app.showForceChangeModal(user);
