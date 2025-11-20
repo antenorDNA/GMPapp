@@ -518,13 +518,13 @@
 			measurementId: "G-WLWZ8DH30P"
         };
         
-        // App ID per i dati pubblici
-        const publicAppId = 'gmp-public-demo'; 
+        // Path Principale Database (PER EVITARE ERRORI DI SEGMENTI)
+        // Struttura: Collezione Principale (gmp_v2) / Documento (public_demo) / Sottocollezioni (users, etc)
+        const DB_PATH = ['gmp_v2', 'public_demo'];
         
         // Init Firebase
         let auth, db;
         
-        // Simple check if config is filled (not strict validation)
         if (firebaseConfig.apiKey !== "INSERISCI_API_KEY_QUI") {
             try {
                 const fbApp = initializeApp(firebaseConfig);
@@ -536,7 +536,6 @@
             }
         } else {
             console.error("Firebase Config Mancante! Compila la sezione nello script.");
-            // alert("Attenzione: Devi configurare Firebase nel codice HTML per far funzionare l'app!");
         }
 
         const SEED_DATA = {
@@ -572,7 +571,6 @@
             ]
         };
 
-        // Main App Object attached to Window for HTML access
         window.app = {
             db: { users:[], products:[], archives:[], cupboards:[], shelves:[], binders:[], batchRecords:[], loans:[], auditTrail:[], systemSettings: [] },
             currentUser: null,
@@ -589,7 +587,6 @@
 
                 document.getElementById('loading-text').textContent = "Autenticazione...";
 
-                // Safety Timeout
                 setTimeout(() => {
                     const overlay = document.getElementById('loading-overlay');
                     if(!overlay.classList.contains('fade-out') && !overlay.classList.contains('hidden')) {
@@ -603,7 +600,6 @@
                 } catch(e) {
                     console.error("Auth Failed", e);
                     document.getElementById('loading-text').textContent = "Errore Auth: " + e.message;
-                    // Show detailed error helper
                     document.getElementById('config-error-msg').classList.remove('hidden');
                     document.getElementById('config-error-detail').textContent = e.code || e.message;
                     return;
@@ -616,7 +612,6 @@
                     }
                 });
 
-                // Event Listeners
                 document.getElementById('login-form').addEventListener('submit', app.handleLogin);
                 document.getElementById('force-change-form').addEventListener('submit', app.handleForcePasswordChange);
                 document.getElementById('security-settings-form').addEventListener('submit', app.handleSaveSecuritySettings);
@@ -641,10 +636,8 @@
                 app.totalCollections = collections.length;
 
                 collections.forEach(colName => {
-                    // FIX: Path must have ODD segments (3 segments: Coll/Doc/Coll)
-                    // Old error was: 'gmp-app-data/users' (2 segments) -> Invalid
-                    // New path: 'gmp-app-data/public-instance/users' (3 segments) -> Valid
-                    const colRef = collection(db, 'gmp-app-data', 'public-instance', colName); 
+                    // FIX CRITICO: Uso DB_PATH per garantire struttura a 3 segmenti (Coll/Doc/Coll)
+                    const colRef = collection(db, ...DB_PATH, colName); 
                     
                     const unsub = onSnapshot(colRef, (snapshot) => {
                         const data = [];
@@ -657,7 +650,7 @@
                         app.refreshCurrentView();
                     }, (error) => {
                         console.error(`Sync error ${colName}:`, error);
-                        app.checkCompletion(); // Continue anyway
+                        app.checkCompletion(); 
                     });
                     
                     app.listeners.push(unsub);
@@ -676,7 +669,6 @@
                             if(!app.currentUser) {
                                 document.getElementById('login-screen').classList.remove('hidden');
                             } else {
-                                // Check if user needs force reset on refresh
                                 if (app.currentUser.pass === 'password123' || app.currentUser.forceReset) {
                                     app.tempUserForReset = app.currentUser;
                                     app.showForceChangeModal(app.currentUser);
@@ -693,8 +685,8 @@
                 if(app.db.users && app.db.users.length === 0) {
                     console.log("Seeding Database...");
                     const addToCol = async (col, item) => {
-                        // FIX: Path must match startSync (3 segments)
-                        const ref = collection(db, 'gmp-app-data', 'public-instance', col); 
+                        // FIX CRITICO: Uso DB_PATH
+                        const ref = collection(db, ...DB_PATH, col); 
                         if(item.id) await setDoc(doc(ref, item.id), item);
                         else await addDoc(ref, item);
                     };
@@ -727,8 +719,8 @@
             dbSet: async (colName, docId, data) => {
                 if(!auth.currentUser) return;
                 try {
-                    // FIX: Path (4 segments for doc: Coll/Doc/Coll/Doc)
-                    const ref = doc(db, 'gmp-app-data', 'public-instance', colName, docId);
+                    // FIX CRITICO: Path Documento = 4 Segmenti (Coll/Doc/Coll/Doc)
+                    const ref = doc(db, ...DB_PATH, colName, docId);
                     await setDoc(ref, data);
                 } catch(e) { app.handleError(e); }
             },
@@ -736,8 +728,8 @@
             dbDelete: async (colName, docId) => {
                 if(!auth.currentUser) return;
                  try {
-                    // FIX: Path
-                    const ref = doc(db, 'gmp-app-data', 'public-instance', colName, docId);
+                    // FIX CRITICO: Path Documento
+                    const ref = doc(db, ...DB_PATH, colName, docId);
                     await deleteDoc(ref);
                 } catch(e) { app.handleError(e); }
             },
@@ -755,8 +747,8 @@
                     target: targetId,
                     details: details
                 };
-                // FIX: Path
-                const ref = collection(db, 'gmp-app-data', 'public-instance', 'auditTrail');
+                // FIX CRITICO: Path
+                const ref = collection(db, ...DB_PATH, 'auditTrail');
                 await addDoc(ref, entry);
             },
 
@@ -1150,30 +1142,6 @@
                     </tr>`;
                 });
             },
-            renderLoans: () => {
-                const pendingList = document.getElementById('loans-pending-list');
-                const approvalPanel = document.getElementById('loan-approvals-panel');
-                // Logica aggiornata: Tutte le richieste pending vengono mostrate a Supervisor/Admin
-                if(['Supervisore', 'Amministratore'].includes(app.currentUser.role)) {
-                    const pendings = app.db.loans.filter(l => l.status === 'PENDING');
-                    approvalPanel.classList.toggle('hidden', pendings.length === 0);
-                    pendingList.innerHTML = pendings.map(l => {
-                        const br = app.db.batchRecords.find(b => b.id === l.brId);
-                        return `<div class="bg-white p-3 rounded border border-yellow-300 flex justify-between items-center"><div><div class="font-bold text-sm">${br.wo}</div><div class="text-xs text-slate-500">Richiesto da: ${l.userId}</div></div><div class="flex gap-2"><button onclick="app.rejectLoan('${l.id}')" class="text-red-600 text-xs">Rifiuta</button><button onclick="app.approveLoan('${l.id}')" class="bg-green-600 text-white text-xs px-3 py-1 rounded">Approva</button></div></div>`;
-                    }).join('');
-                } else { approvalPanel.classList.add('hidden'); }
-                
-                const tbody = document.getElementById('loans-active-body');
-                tbody.innerHTML = '';
-                app.db.loans.filter(l => l.status === 'ACTIVE').forEach(l => {
-                    const br = app.db.batchRecords.find(b => b.id === l.brId);
-                    // Per restituire: Se sei l'utente che l'ha preso O se sei un Admin (override)
-                    let canReturn = (l.userId === app.currentUser.id || app.currentUser.role === 'Amministratore');
-                    let action = canReturn ? `<button onclick="app.returnLoan('${l.id}')" class="text-blue-600 hover:underline text-sm font-bold">Restituisci</button>` : `<span class="text-slate-400 italic text-xs">In uso da altri</span>`;
-                    tbody.innerHTML += `<tr><td class="p-3 font-bold text-slate-700">${br.wo}</td><td class="p-3"><span class="bg-slate-100 px-2 py-1 rounded text-xs font-mono">${l.userId}</span></td><td class="p-3 text-xs">${new Date(l.outDate).toLocaleString()}</td><td class="p-3 text-xs">${l.approvedBy || '-'}</td><td class="p-3"><span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold">Attivo</span></td><td class="p-3 text-right">${action}</td></tr>`;
-                });
-            },
-            // ... rest of standard render functions (archive, audit, users) ...
             renderArchiveTree: () => {
                 const container = document.getElementById('archive-tree');
                 container.innerHTML = '';
