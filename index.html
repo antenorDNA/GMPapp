@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GMP-ArchiveSys | Cloud Edition</title>
+    <title>GMP-ArchiveSys | Shared Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
@@ -21,7 +21,7 @@
         
         /* Loading Overlay */
         #loading-overlay {
-            position: fixed; inset: 0; background: rgba(255,255,255,0.9); 
+            position: fixed; inset: 0; background: rgba(255,255,255,0.98); 
             z-index: 100; display: flex; flex-direction: column; 
             align-items: center; justify-content: center;
             transition: opacity 0.5s ease-out;
@@ -30,18 +30,35 @@
             opacity: 0;
             pointer-events: none;
         }
+        
+        /* Status Indicator Pulse */
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .status-live {
+            animation: pulse-green 2s infinite;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden">
     <!-- Loading Screen -->
     <div id="loading-overlay">
         <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mb-4"></div>
-        <h2 class="text-xl font-bold text-slate-700">Connessione al Cloud...</h2>
-        <p class="text-slate-500 text-sm" id="loading-text">Inizializzazione...</p>
-        <div id="config-error-msg" class="hidden mt-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded text-xs max-w-md text-center">
-            <strong>Errore Configurazione:</strong> <span id="config-error-detail"></span><br>
-            Verifica di aver abilitato "Anonymous Auth" nella Firebase Console.
+        <h2 class="text-xl font-bold text-slate-700">Connessione al Database Condiviso...</h2>
+        <p class="text-slate-500 text-sm mt-2" id="loading-text">Inizializzazione...</p>
+        
+        <div id="config-error-msg" class="hidden mt-6 p-4 bg-red-50 text-red-700 border border-red-200 rounded text-xs max-w-md text-center">
+            <i class="fas fa-exclamation-triangle text-xl mb-2"></i><br>
+            <strong>Problema di Configurazione Rilevato:</strong> <span id="config-error-detail"></span><br><br>
+            <ul class="text-left list-disc ml-4 space-y-1">
+                <li>Assicurati di aver incollato la tua <code>firebaseConfig</code> nel codice.</li>
+                <li>Controlla di aver impostato le <strong>Regole Firestore</strong> su <code>allow read, write: if true;</code>.</li>
+                <li>Verifica che l'Autenticazione "Anonima" sia abilitata.</li>
+            </ul>
         </div>
+
         <button onclick="app.checkCompletion(true)" class="mt-8 text-xs text-slate-400 underline hover:text-slate-600 cursor-pointer z-50">
             Forza avvio (se bloccato)
         </button>
@@ -49,10 +66,21 @@
 
     <!-- ================= LOGIN SCREEN ================= -->
     <div id="login-screen" class="fixed inset-0 z-50 bg-slate-200 flex items-center justify-center hidden">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-blue-600">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-blue-600 relative overflow-hidden">
+            <!-- Badge Environment -->
+            <div class="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-3 py-1 rounded-bl-lg font-bold uppercase tracking-wider">
+                Live Environment
+            </div>
+
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-blue-800">GMP-ArchiveSys</h1>
-                <p class="text-slate-500 text-sm mt-2">Cloud Edition (Firebase)</p>
+                <div class="flex items-center justify-center gap-2 mt-3 text-sm text-slate-600 bg-slate-100 py-1.5 px-4 rounded-full w-fit mx-auto border border-slate-200">
+                    <div class="w-2.5 h-2.5 bg-green-500 rounded-full status-live"></div>
+                    Cloud DB: <span class="font-mono font-bold text-slate-800">gmp_v2/public</span>
+                </div>
+                <p class="text-slate-400 text-xs mt-2 max-w-xs mx-auto">
+                    Tutti i dati inseriti qui sono visibili in tempo reale a chiunque acceda a questo link.
+                </p>
             </div>
             
             <form id="login-form" class="space-y-6">
@@ -92,7 +120,7 @@
             <div class="p-6 border-b border-slate-700">
                 <div class="text-xl font-bold tracking-tight">GMP-ArchiveSys</div>
                 <div class="text-xs text-slate-400 mt-1 flex items-center gap-2">
-                    <div class="w-2 h-2 rounded-full bg-green-500"></div> Cloud Connected
+                    <div class="w-2 h-2 rounded-full bg-green-500 status-live"></div> Connesso e Sincronizzato
                 </div>
             </div>
             <nav class="flex-1 py-6 space-y-1 px-3">
@@ -518,8 +546,8 @@
 			measurementId: "G-WLWZ8DH30P"
         };
         
-        // Path Principale Database (PER EVITARE ERRORI DI SEGMENTI)
-        // Struttura: Collezione Principale (gmp_v2) / Documento (public_demo) / Sottocollezioni (users, etc)
+        // Path Principale Database (3 SEGMENTI per evitare errori di "Invalid Collection Reference")
+        // gmp_v2 (Coll) -> public_demo (Doc) -> [NomeCollezione] (Coll)
         const DB_PATH = ['gmp_v2', 'public_demo'];
         
         // Init Firebase
@@ -637,687 +665,4 @@
 
                 collections.forEach(colName => {
                     // FIX CRITICO: Uso DB_PATH per garantire struttura a 3 segmenti (Coll/Doc/Coll)
-                    const colRef = collection(db, ...DB_PATH, colName); 
-                    
-                    const unsub = onSnapshot(colRef, (snapshot) => {
-                        const data = [];
-                        snapshot.forEach(doc => data.push({ ...doc.data(), _id: doc.id }));
-                        
-                        if(colName === 'auditTrail') data.sort((a,b) => new Date(b.ts) - new Date(a.ts));
-                        app.db[colName] = data;
-                        
-                        app.checkCompletion();
-                        app.refreshCurrentView();
-                    }, (error) => {
-                        console.error(`Sync error ${colName}:`, error);
-                        app.checkCompletion(); 
-                    });
-                    
-                    app.listeners.push(unsub);
-                });
-            },
-
-            checkCompletion: (force = false) => {
-                if(!force) app.loadedCount = (app.loadedCount || 0) + 1;
-                
-                if(force || app.loadedCount >= app.totalCollections) {
-                     const overlay = document.getElementById('loading-overlay');
-                     if(!overlay.classList.contains('fade-out')) {
-                        overlay.classList.add('fade-out');
-                        setTimeout(() => {
-                            overlay.classList.add('hidden');
-                            if(!app.currentUser) {
-                                document.getElementById('login-screen').classList.remove('hidden');
-                            } else {
-                                if (app.currentUser.pass === 'password123' || app.currentUser.forceReset) {
-                                    app.tempUserForReset = app.currentUser;
-                                    app.showForceChangeModal(app.currentUser);
-                                }
-                                app.refreshCurrentView();
-                            }
-                        }, 500);
-                        app.checkSeed();
-                     }
-                }
-            },
-
-            checkSeed: async () => {
-                if(app.db.users && app.db.users.length === 0) {
-                    console.log("Seeding Database...");
-                    const addToCol = async (col, item) => {
-                        // FIX CRITICO: Uso DB_PATH
-                        const ref = collection(db, ...DB_PATH, col); 
-                        if(item.id) await setDoc(doc(ref, item.id), item);
-                        else await addDoc(ref, item);
-                    };
-                    for(let u of SEED_DATA.users) await addToCol('users', u);
-                    for(let p of SEED_DATA.products) await addToCol('products', p);
-                    for(let a of SEED_DATA.archives) await addToCol('archives', a);
-                    for(let c of SEED_DATA.cupboards) await addToCol('cupboards', c);
-                    for(let s of SEED_DATA.shelves) await addToCol('shelves', s);
-                    for(let b of SEED_DATA.binders) await addToCol('binders', b);
-                    for(let s of SEED_DATA.systemSettings) await addToCol('systemSettings', s);
-                    app.toast("Database Inizializzato", "success");
-                }
-            },
-
-            refreshCurrentView: () => {
-                if(app.currentUser) {
-                    app.updateProductSelects(); 
-                    if(!document.getElementById('view-dashboard').classList.contains('hidden')) app.renderDashboard();
-                    if(!document.getElementById('view-archive').classList.contains('hidden')) app.renderArchiveTree();
-                    if(!document.getElementById('view-batch-records').classList.contains('hidden')) app.renderBatchRecords();
-                    if(!document.getElementById('view-products').classList.contains('hidden')) app.renderProducts();
-                    if(!document.getElementById('view-loans').classList.contains('hidden')) app.renderLoans();
-                    if(!document.getElementById('view-audit').classList.contains('hidden')) app.renderAudit();
-                    if(!document.getElementById('view-users').classList.contains('hidden')) app.renderUsers();
-                    if(!document.getElementById('view-security').classList.contains('hidden')) app.renderSecuritySettings();
-                }
-            },
-
-            // --- WRITES ---
-            dbSet: async (colName, docId, data) => {
-                if(!auth.currentUser) return;
-                try {
-                    // FIX CRITICO: Path Documento = 4 Segmenti (Coll/Doc/Coll/Doc)
-                    const ref = doc(db, ...DB_PATH, colName, docId);
-                    await setDoc(ref, data);
-                } catch(e) { app.handleError(e); }
-            },
-            
-            dbDelete: async (colName, docId) => {
-                if(!auth.currentUser) return;
-                 try {
-                    // FIX CRITICO: Path Documento
-                    const ref = doc(db, ...DB_PATH, colName, docId);
-                    await deleteDoc(ref);
-                } catch(e) { app.handleError(e); }
-            },
-
-            handleError: (e) => {
-                console.error(e);
-                app.toast("Errore Database: " + e.message, "error");
-            },
-
-            logAudit: async (action, targetId, details) => {
-                const entry = {
-                    ts: new Date().toISOString(),
-                    user: app.currentUser ? app.currentUser.id : 'SYSTEM',
-                    action: action,
-                    target: targetId,
-                    details: details
-                };
-                // FIX CRITICO: Path
-                const ref = collection(db, ...DB_PATH, 'auditTrail');
-                await addDoc(ref, entry);
-            },
-
-            // --- AUTH & ACCESS ---
-            handleLogin: (e) => {
-                e.preventDefault();
-                const u = document.getElementById('login-username').value.trim();
-                const p = document.getElementById('login-password').value.trim();
-                const user = app.db.users.find(x => x.id === u && x.pass === p);
-                
-                if(user) {
-                    if(user.status !== 'Attivo') return app.toast('Account bloccato', 'error');
-                    
-                    if (user.pass === 'password123' || user.forceReset) {
-                        app.tempUserForReset = user;
-                        app.showForceChangeModal(user);
-                        return;
-                    }
-
-                    app.currentUser = user;
-                    app.logAudit('LOGIN_SUCCESS', user.id, 'User logged in');
-                    app.showApp();
-                    document.getElementById('login-form').reset();
-                } else {
-                    app.logAudit('LOGIN_FAIL', u, 'Invalid credentials');
-                    app.toast('Credenziali non valide', 'error');
-                }
-            },
-            logout: () => {
-                if(app.currentUser) app.logAudit('LOGOUT', app.currentUser.id, 'User logged out');
-                app.currentUser = null;
-                app.tempUserForReset = null;
-                document.getElementById('app-layout').classList.add('hidden');
-                document.getElementById('login-screen').classList.remove('hidden');
-                document.getElementById('modal-force-password-change').classList.add('hidden');
-            },
-            showApp: () => {
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('modal-force-password-change').classList.add('hidden');
-                document.getElementById('app-layout').classList.remove('hidden');
-                document.getElementById('user-name').textContent = app.currentUser.name;
-                document.getElementById('user-role').textContent = app.currentUser.role;
-                document.getElementById('user-avatar').textContent = app.currentUser.name.charAt(0);
-                document.getElementById('esig-username').value = app.currentUser.id;
-                document.getElementById('dual-user1').value = app.currentUser.id;
-                app.applyRBAC();
-                app.nav('dashboard');
-            },
-            applyRBAC: () => {
-                const role = app.currentUser.role;
-                if(['Amministratore'].includes(role)) {
-                     document.getElementById('nav-users').classList.remove('hidden');
-                     document.getElementById('nav-security').classList.remove('hidden');
-                }
-                if(['Amministratore', 'Supervisore'].includes(role)) {
-                    document.getElementById('nav-audit').classList.remove('hidden');
-                    document.getElementById('nav-products').classList.remove('hidden');
-                }
-                document.querySelectorAll('.restricted-btn').forEach(btn => {
-                    const allowed = btn.dataset.roles.split(',');
-                    if(!allowed.includes(role)) btn.classList.add('hidden'); else btn.classList.remove('hidden');
-                });
-            },
-            nav: (view, subAction = null) => {
-                document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
-                document.getElementById(`view-${view}`).classList.remove('hidden');
-                const titles = { 'dashboard': 'Dashboard', 'archive': 'Archivio Fisico', 'batch-records': 'Gestione Batch Records', 'products': 'Anagrafica Prodotti', 'loans': 'Gestione Prestiti', 'audit': 'Audit Trail', 'users': 'Utenti di Sistema', 'security': 'Sicurezza & Policy' };
-                document.getElementById('page-title').textContent = titles[view];
-                app.refreshCurrentView();
-                if(view === 'batch-records' && subAction === 'create') app.modals.createBR.show();
-            },
-
-            // --- SECURITY SETTINGS LOGIC ---
-            getSecurityPolicy: () => {
-                return app.db.systemSettings.find(s => s.id === 'security') || { minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3 };
-            },
-            renderSecuritySettings: () => {
-                const policy = app.getSecurityPolicy();
-                document.getElementById('sec-min-length').value = policy.minLength;
-                document.getElementById('sec-expiry').value = policy.expiryDays;
-                document.getElementById('sec-attempts').value = policy.maxAttempts;
-                document.getElementById('sec-req-num').checked = policy.requireNumber;
-                document.getElementById('sec-req-spec').checked = policy.requireSpecial;
-                document.getElementById('sec-req-upper').checked = policy.requireUpper;
-            },
-            handleSaveSecuritySettings: (e) => {
-                e.preventDefault();
-                app.triggerESig('UPDATE_SECURITY_POLICY', async (comment) => {
-                     const newPolicy = {
-                         id: 'security',
-                         minLength: parseInt(document.getElementById('sec-min-length').value),
-                         expiryDays: parseInt(document.getElementById('sec-expiry').value),
-                         maxAttempts: parseInt(document.getElementById('sec-attempts').value),
-                         requireNumber: document.getElementById('sec-req-num').checked,
-                         requireSpecial: document.getElementById('sec-req-spec').checked,
-                         requireUpper: document.getElementById('sec-req-upper').checked
-                     };
-                     await app.dbSet('systemSettings', 'security', newPolicy);
-                     await app.logAudit('SEC_POLICY_UPDATE', 'SYSTEM', `Policy updated. Reason: ${comment}`);
-                     app.toast('Policy di Sicurezza Aggiornata', 'success');
-                });
-            },
-
-            // --- FORCE PASSWORD CHANGE LOGIC ---
-            showForceChangeModal: (user) => {
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('modal-force-password-change').classList.remove('hidden');
-                
-                const policy = app.getSecurityPolicy();
-                let reqHtml = `<li>Minimo <span id="req-len">${policy.minLength}</span> caratteri</li>`;
-                if(policy.requireNumber) reqHtml += `<li>Almeno un numero</li>`;
-                if(policy.requireSpecial) reqHtml += `<li>Almeno un carattere speciale</li>`;
-                if(policy.requireUpper) reqHtml += `<li>Almeno una maiuscola</li>`;
-                document.getElementById('password-requirements-list').innerHTML = reqHtml;
-            },
-            
-            validatePassword: (pass) => {
-                 const policy = app.getSecurityPolicy();
-                 if (pass.length < policy.minLength) return "Lunghezza insufficiente";
-                 if (policy.requireNumber && !/\d/.test(pass)) return "Manca un numero";
-                 if (policy.requireUpper && !/[A-Z]/.test(pass)) return "Manca una maiuscola";
-                 if (policy.requireSpecial && !/[!@#$%^&*(),.?":{}|<>]/.test(pass)) return "Manca carattere speciale";
-                 return null;
-            },
-
-            handleForcePasswordChange: async (e) => {
-                e.preventDefault();
-                const newPass = document.getElementById('force-new-pass').value;
-                const confirmPass = document.getElementById('force-confirm-pass').value;
-                
-                if (newPass !== confirmPass) return app.toast('Le password non coincidono', 'error');
-                if (newPass === 'password123') return app.toast('Non puoi riutilizzare la password di default', 'error');
-                
-                const error = app.validatePassword(newPass);
-                if (error) return app.toast(`Policy Violata: ${error}`, 'error');
-
-                // Update User
-                const user = app.tempUserForReset;
-                user.pass = newPass;
-                delete user.forceReset; // Clear flag
-                
-                await app.dbSet('users', user.id, user);
-                await app.logAudit('PASS_CHANGE', user.id, 'Forced password change completed');
-                
-                app.currentUser = user;
-                app.tempUserForReset = null;
-                app.showApp();
-                app.toast('Password aggiornata con successo', 'success');
-            },
-
-            // --- PRODUCT MANAGEMENT ---
-            updateProductSelects: () => {
-                const selects = ['create-br-product-select'];
-                selects.forEach(id => {
-                    const el = document.getElementById(id);
-                    if(el) {
-                        const current = el.value;
-                        el.innerHTML = `<option value="">Seleziona Prodotto...</option>` + 
-                            app.db.products.map(p => `<option value="${p.name}">${p.code} - ${p.name}</option>`).join('');
-                        if(current) el.value = current;
-                    }
-                });
-            },
-            renderProducts: () => {
-                const tbody = document.getElementById('products-table-body');
-                tbody.innerHTML = app.db.products.map(p => `
-                    <tr class="hover:bg-slate-50">
-                        <td class="p-4 font-mono font-bold text-slate-700">${p.code}</td>
-                        <td class="p-4">${p.name}</td>
-                        <td class="p-4 text-slate-500 text-sm">${p.desc}</td>
-                        <td class="p-4 text-right">
-                            <button onclick="app.deleteProduct('${p.id}')" class="text-red-600 hover:text-red-800 text-sm"><i class="fas fa-trash"></i> Elimina</button>
-                        </td>
-                    </tr>
-                `).join('');
-            },
-            handleCreateProduct: (e) => {
-                e.preventDefault();
-                app.triggerESig('CREAZIONE_PRODOTTO', async (comment) => {
-                    const data = new FormData(document.getElementById('create-product-form'));
-                    const newProd = {
-                        id: 'PROD-' + Date.now(),
-                        code: data.get('code').toUpperCase(),
-                        name: data.get('name'),
-                        desc: data.get('desc')
-                    };
-                    await app.dbSet('products', newProd.id, newProd);
-                    await app.logAudit('CREATE_PROD', newProd.id, `Product created. Reason: ${comment}`);
-                    document.getElementById('modal-create-product').classList.add('hidden');
-                    e.target.reset(); // Reset the specific form
-                    app.toast('Prodotto Creato', 'success');
-                });
-            },
-            deleteProduct: (id) => {
-                app.triggerESig('ELIMINAZIONE_PRODOTTO', async (comment) => {
-                     await app.dbDelete('products', id);
-                     await app.logAudit('DELETE_PROD', id, `Product deleted. Reason: ${comment}`);
-                     app.toast('Prodotto Eliminato', 'success');
-                });
-            },
-
-            // --- BATCH RECORDS ---
-            handleCreateBR: async (e) => {
-                e.preventDefault();
-                const data = new FormData(e.target);
-                
-                // Validation logic
-                const lot = data.get('lot');
-                // BUG 1: VALIDAZIONE REGEX RIMOSSA
-                /*
-                if(!/^\d+$/.test(lot)) {
-                    return app.toast('Errore: Il lotto deve contenere solo numeri.', 'error');
-                }
-                */
-
-                const newBR = {
-                    id: 'BR-' + Math.floor(Math.random() * 100000),
-                    wo: data.get('wo'),
-                    lot: lot,
-                    product: data.get('product'),
-                    type: data.get('type') || 'standard',
-                    notes: data.get('notes'),
-                    status: 'In Archiviazione',
-                    binderId: null,
-                    loanId: null
-                };
-                await app.dbSet('batchRecords', newBR.id, newBR);
-                await app.logAudit('CREATE_BR', newBR.id, `Created BR (${newBR.type}) WO ${newBR.wo}`);
-                document.getElementById('modal-create-br').classList.add('hidden');
-                e.target.reset();
-                app.toast('BR Creato', 'success');
-                app.nav('batch-records');
-                setTimeout(() => { if(confirm("Archiviare ora?")) app.openArchiveSelector(newBR.id); }, 500);
-            },
-
-            // --- LOANS LOGIC ---
-            requestLoan: (brId) => {
-                // TUTTE le richieste ora necessitano approvazione come da specifica
-                const loan = { id: 'LOAN-' + Date.now(), brId: brId, userId: app.currentUser.id, reqDate: new Date().toISOString(), status: 'PENDING' };
-                app.dbSet('loans', loan.id, loan);
-                app.logAudit('LOAN_REQ', brId, `Loan requested by ${app.currentUser.id}`);
-                app.toast('Richiesta di prestito inviata. In attesa di approvazione.', 'info');
-            },
-            
-            approveLoan: (loanId) => {
-                app.triggerESig('APPROVAZIONE_PRESTITO', async (comment) => {
-                    const loan = app.db.loans.find(l => l.id === loanId);
-                    const br = app.db.batchRecords.find(b => b.id === loan.brId);
-                    loan.status = 'ACTIVE'; loan.approvedBy = app.currentUser.id; loan.outDate = new Date().toISOString();
-                    br.status = 'In Prestito'; br.loanId = loan.id;
-                    await app.dbSet('loans', loan.id, loan);
-                    await app.dbSet('batchRecords', br.id, br);
-                    await app.logAudit('LOAN_APPROVE', br.id, `Approved for ${loan.userId}. Note: ${comment}`);
-                    app.toast('Approvato', 'success');
-                });
-            },
-
-            returnLoan: (loanId) => {
-                // Trigger DUAL signature flow
-                const loan = app.db.loans.find(l => l.id === loanId);
-                app.triggerDualESig(loan, async (comment) => {
-                    const br = app.db.batchRecords.find(b => b.id === loan.brId);
-                    loan.status = 'RETURNED'; loan.inDate = new Date().toISOString();
-                    br.status = 'Archiviato'; br.loanId = null;
-                    await app.dbSet('loans', loan.id, loan);
-                    await app.dbSet('batchRecords', br.id, br);
-                    // BUG 2: COMMENTO IGNORATO NELL'AUDIT TRAIL
-                    await app.logAudit('LOAN_RETURN', br.id, `Returned (Dual Sig)`); 
-                    app.toast('Restituito con successo', 'success');
-                });
-            },
-
-            // --- E-SIGNATURES ---
-            triggerESig: (action, cb) => {
-                document.getElementById('modal-esig').classList.remove('hidden');
-                document.getElementById('esig-comment').value = '';
-                document.getElementById('esig-password').value = '';
-                app.esigCb = cb; 
-                app.esigAct = action;
-            },
-            handleESig: (e) => {
-                e.preventDefault();
-                const pass = document.getElementById('esig-password').value;
-                const comment = document.getElementById('esig-comment').value;
-                
-                if(pass === app.currentUser.pass) {
-                    document.getElementById('modal-esig').classList.add('hidden');
-                    app.logAudit('E_SIG_OK', app.currentUser.id, `Sig for ${app.esigAct}`);
-                    if(app.esigCb) app.esigCb(comment);
-                } else {
-                    app.toast('Password Errata', 'error');
-                    app.logAudit('E_SIG_FAIL', app.currentUser.id, `Sig fail for ${app.esigAct}`);
-                }
-            },
-
-            // --- DUAL E-SIGNATURE (Return) ---
-            triggerDualESig: (loan, cb) => {
-                const modal = document.getElementById('modal-dual-esig');
-                modal.classList.remove('hidden');
-                
-                // Populate Supervisor Select (Exclude current user usually, but allow for demo)
-                const supervisors = app.db.users.filter(u => ['Supervisore', 'Amministratore'].includes(u.role));
-                const select = document.getElementById('dual-user2-select');
-                select.innerHTML = `<option value="">Seleziona Supervisore...</option>` + 
-                    supervisors.map(u => `<option value="${u.id}">${u.name} (${u.role})</option>`).join('');
-
-                document.getElementById('dual-pass1').value = '';
-                document.getElementById('dual-pass2').value = '';
-                document.getElementById('dual-comment').value = '';
-                
-                app.dualEsigCb = cb;
-            },
-            handleDualESig: (e) => {
-                e.preventDefault();
-                const pass1 = document.getElementById('dual-pass1').value;
-                const user2Id = document.getElementById('dual-user2-select').value;
-                const pass2 = document.getElementById('dual-pass2').value;
-                const comment = document.getElementById('dual-comment').value;
-
-                // Verify User 1 (Current)
-                if(pass1 !== app.currentUser.pass) return app.toast('Password Operatore Errata', 'error');
-
-                // Verify User 2 (Supervisor)
-                const supervisor = app.db.users.find(u => u.id === user2Id);
-                if(!supervisor || supervisor.pass !== pass2) return app.toast('Password Supervisore Errata', 'error');
-
-                document.getElementById('modal-dual-esig').classList.add('hidden');
-                app.logAudit('DUAL_ESIG_OK', app.currentUser.id, `Dual Sig with ${supervisor.id}`);
-                if(app.dualEsigCb) app.dualEsigCb(`Dual Sig (${app.currentUser.id} + ${supervisor.id}): ${comment}`);
-            },
-
-            // --- GENERIC RENDERING ---
-            renderDashboard: () => {
-                document.getElementById('dash-total-br').textContent = app.db.batchRecords.length;
-                document.getElementById('dash-archived-br').textContent = app.db.batchRecords.filter(b => b.status === 'Archiviato').length;
-                document.getElementById('dash-loaned-br').textContent = app.db.batchRecords.filter(b => b.status === 'In Prestito').length;
-                const pending = app.db.loans.filter(l => l.status === 'PENDING').length;
-                document.getElementById('dash-pending-loans').textContent = pending;
-                document.getElementById('badge-loans').textContent = pending || "";
-                document.getElementById('badge-loans').classList.toggle('hidden', pending === 0);
-                const ctx = document.getElementById('chart-status').getContext('2d');
-                if(window.myChart) window.myChart.destroy();
-                window.myChart = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['In Archiviazione', 'Archiviati', 'In Prestito'],
-                        datasets: [{
-                            data: [
-                                app.db.batchRecords.filter(b => b.status === 'In Archiviazione').length,
-                                app.db.batchRecords.filter(b => b.status === 'Archiviato').length,
-                                app.db.batchRecords.filter(b => b.status === 'In Prestito').length
-                            ],
-                            backgroundColor: ['#3b82f6', '#22c55e', '#eab308']
-                        }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false }
-                });
-            },
-            renderBatchRecords: () => {
-                const tbody = document.getElementById('br-table-body');
-                const search = document.getElementById('br-search').value.toLowerCase();
-                const filter = document.getElementById('br-filter-status').value;
-                tbody.innerHTML = '';
-                const filtered = app.db.batchRecords.filter(br => {
-                    const binder = app.db.binders.find(b => b.id === br.binderId);
-                    const binderCode = binder ? binder.code.toLowerCase() : '';
-                    const matchesSearch = br.wo.toLowerCase().includes(search) || br.lot.toLowerCase().includes(search) || br.id.toLowerCase().includes(search) || binderCode.includes(search);
-                    
-                    let matchesFilter = filter === 'all' || br.status === filter;
-                    // BUG 3: LA CECITÀ DEL FILTRO
-                    if(filter === 'In Prestito') matchesFilter = false; 
-
-                    return matchesSearch && matchesFilter;
-                });
-                filtered.forEach(br => {
-                    const binder = app.db.binders.find(b => b.id === br.binderId);
-                    const loc = binder ? `<span class="font-mono text-xs bg-slate-100 px-2 py-1 rounded">${binder.code}</span>` : '<span class="text-red-400 italic">Non Archiviato</span>';
-                    const statusColors = { 'In Archiviazione': 'bg-blue-100 text-blue-700', 'Archiviato': 'bg-green-100 text-green-700', 'In Prestito': 'bg-yellow-100 text-yellow-700' };
-                    const typeBadge = br.type === 'validazione' ? '<span class="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs font-bold">Validazione</span>' : '<span class="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">Standard</span>';
-                    let actions = '';
-                    if(br.status === 'In Archiviazione') actions += `<button onclick="app.openArchiveSelector('${br.id}')" class="text-blue-600 hover:underline text-sm mr-2">Archivia</button>`;
-                    else if (br.status === 'Archiviato') actions += `<button onclick="app.requestLoan('${br.id}')" class="text-purple-600 hover:underline text-sm">Richiedi Prestito</button>`;
-                    tbody.innerHTML += `<tr class="hover:bg-slate-50 transition">
-                        <td class="p-4 font-mono text-sm text-slate-600">${br.id}</td>
-                        <td class="p-4 font-bold text-slate-700">${br.wo}</td>
-                        <td class="p-4"><div class="text-sm font-bold">${br.product}</div><div class="text-xs text-slate-500">Lot: ${br.lot}</div></td>
-                        <td class="p-4">${typeBadge}</td>
-                        <td class="p-4"><span class="px-2 py-1 rounded-full text-xs font-bold ${statusColors[br.status]}">${br.status}</span></td>
-                        <td class="p-4">${loc}</td>
-                        <td class="p-4 text-right">${actions}</td>
-                    </tr>`;
-                });
-            },
-            renderArchiveTree: () => {
-                const container = document.getElementById('archive-tree');
-                container.innerHTML = '';
-                let html = '';
-                app.db.archives.forEach(arch => {
-                    html += `<div class="font-bold text-blue-800 p-2 bg-blue-50 rounded mb-1"><i class="fas fa-building mr-2"></i>${arch.name}</div>`;
-                    app.db.cupboards.filter(c => c.parentId === arch.id).forEach(cup => {
-                        html += `<div class="ml-4 text-slate-700 p-1 hover:bg-slate-100 cursor-pointer rounded" onclick="app.showNodeContent('cupboard', '${cup.id}')"><i class="fas fa-door-closed mr-2"></i>${cup.name}</div>`;
-                        app.db.shelves.filter(s => s.parentId === cup.id).forEach(shelf => {
-                            html += `<div class="ml-8 text-slate-600 p-1 hover:bg-slate-100 cursor-pointer rounded" onclick="app.showNodeContent('shelf', '${shelf.id}')"><i class="fas fa-layer-group mr-2"></i>${shelf.name}</div>`;
-                        });
-                    });
-                });
-                container.innerHTML = html;
-            },
-            showNodeContent: (type, id) => {
-                const content = document.getElementById('archive-content');
-                if(type === 'shelf') {
-                    const shelf = app.db.shelves.find(s => s.id === id);
-                    const binders = app.db.binders.filter(b => b.parentId === id);
-                    let html = `<h3 class="text-2xl font-bold text-slate-800 mb-4"><i class="fas fa-layer-group mr-2"></i>${shelf ? shelf.name : 'Scaffale'}</h3><div class="grid grid-cols-3 gap-4">`;
-                    if(binders.length === 0) html += `<p class="text-slate-400 col-span-3">Nessun faldone.</p>`;
-                    binders.forEach(b => {
-                        const count = app.db.batchRecords.filter(br => br.binderId === b.id).length;
-                        html += `<div class="border border-slate-300 rounded-lg p-4 hover:shadow-md transition cursor-pointer bg-blue-50" onclick="app.openBinder('${b.id}')">
-                                <div class="flex justify-between items-start"><i class="fas fa-folder text-3xl text-blue-400"></i><span class="bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded-full">${count} BR</span></div>
-                                <div class="mt-2 font-bold text-slate-700">${b.code}</div><div class="text-xs text-slate-500">ID: ${b.id}</div></div>`;
-                    });
-                    html += `</div>`;
-                    content.innerHTML = html;
-                } else {
-                     content.innerHTML = `<div class="h-full flex items-center justify-center text-slate-400">Seleziona uno Scaffale per vedere i Faldoni.</div>`;
-                }
-            },
-            handleAddArchive: async (e) => {
-                e.preventDefault();
-                const data = new FormData(e.target);
-                const type = data.get('type');
-                const name = data.get('name');
-                const parentId = data.get('parentId');
-                const id = type.toUpperCase().substring(0,4) + '-' + Date.now();
-                const item = { id, name, parentId };
-                if(type === 'binder') { item.code = name; delete item.name; item.status = 'Disponibile'; }
-                
-                let collectionName = type + 's';
-                if (type === 'shelf') collectionName = 'shelves';
-                await app.dbSet(collectionName, id, item);
-                await app.logAudit('ADD_ARCHIVE', id, `Added ${type}: ${name}`);
-                app.toast('Elemento aggiunto', 'success');
-                document.getElementById('modal-add-archive').classList.add('hidden');
-                e.target.reset();
-            },
-            updateParentSelect: () => {
-                const type = document.getElementById('archive-type-select').value;
-                const container = document.getElementById('parent-select-container');
-                const select = document.getElementById('archive-parent-select');
-                select.innerHTML = '';
-                if(type === 'archive') { container.classList.add('hidden'); return; }
-                container.classList.remove('hidden');
-                let options = [];
-                if(type === 'cupboard') options = app.db.archives;
-                else if (type === 'shelf') options = app.db.cupboards;
-                else if (type === 'binder') options = app.db.shelves;
-                options.forEach(opt => {
-                    const option = document.createElement('option');
-                    option.value = opt.id;
-                    option.textContent = opt.name || opt.code;
-                    select.appendChild(option);
-                });
-            },
-            openBinder: (binderId) => {
-                const binder = app.db.binders.find(b => b.id === binderId);
-                if (!binder) return;
-                app.nav('batch-records');
-                document.getElementById('br-search').value = binder.code;
-                app.renderBatchRecords();
-                app.toast(`Filtro: Faldone ${binder.code}`, 'info');
-            },
-            openArchiveSelector: (brId) => {
-                document.getElementById('modal-archive-select').classList.remove('hidden');
-                app.tempBrId = brId;
-                const br = app.db.batchRecords.find(b => b.id === brId);
-                const isVal = br.type === 'validazione';
-                const msgBox = document.getElementById('archive-select-info');
-                msgBox.classList.remove('hidden', 'bg-purple-50', 'text-purple-800', 'bg-blue-50', 'text-blue-800');
-                msgBox.classList.add(isVal ? 'bg-purple-50' : 'bg-blue-50', isVal ? 'text-purple-800' : 'text-blue-800');
-                msgBox.textContent = isVal ? "Solo 'Archivio BR Validazione'" : "Escluso 'Archivio BR Validazione'";
-                const container = document.getElementById('archive-select-tree');
-                let html = '';
-                let hasOptions = false;
-                app.db.binders.forEach(b => {
-                    const shelf = app.db.shelves.find(s => s.id === b.parentId);
-                    const cup = app.db.cupboards.find(c => c.id === shelf.parentId);
-                    const arch = app.db.archives.find(a => a.id === cup.parentId);
-                    const isValArch = arch.name === 'Archivio BR Validazione';
-                    if (isVal && !isValArch) return;
-                    if (!isVal && isValArch) return;
-                    hasOptions = true;
-                    html += `<div class="p-2 border-b hover:bg-blue-50 cursor-pointer flex justify-between items-center" onclick="app.selectArchiveTarget('${b.id}', this)"><div><div class="font-bold text-sm text-slate-700"><i class="fas fa-folder mr-2 text-yellow-500"></i>${b.code}</div><div class="text-xs text-slate-500">${arch.name} > ...</div></div></div>`;
-                });
-                container.innerHTML = hasOptions ? html : `<div class="text-center py-4 text-gray-500">Nessun faldone idoneo.</div>`;
-            },
-            selectArchiveTarget: (binderId, el) => {
-                document.querySelectorAll('#archive-select-tree div').forEach(d => d.classList.remove('bg-blue-100'));
-                el.classList.add('bg-blue-100');
-                app.tempBinderId = binderId;
-                const btn = document.getElementById('btn-confirm-archive');
-                btn.disabled = false;
-                btn.onclick = async () => {
-                    const br = app.db.batchRecords.find(b => b.id === app.tempBrId);
-                    br.binderId = binderId;
-                    br.status = 'Archiviato';
-                    await app.dbSet('batchRecords', br.id, br);
-                    await app.logAudit('ARCHIVE_BR', br.id, `Moved to binder ${binderId}`);
-                    document.getElementById('modal-archive-select').classList.add('hidden');
-                    app.toast('Archiviazione Completata', 'success');
-                };
-            },
-            rejectLoan: async (loanId) => {
-                 const loan = app.db.loans.find(l => l.id === loanId);
-                 loan.status = 'REJECTED';
-                 await app.dbSet('loans', loan.id, loan);
-                 await app.logAudit('LOAN_REJECT', loan.brId, `Rejected by ${app.currentUser.id}`);
-                 app.toast('Richiesta rifiutata', 'info');
-            },
-            handleCreateUser: async (e) => {
-                e.preventDefault();
-                const data = new FormData(e.target);
-                const uid = data.get('uid').toUpperCase();
-                if(app.db.users.find(u => u.id === uid)) return app.toast('ID esistente', 'error');
-                const newUser = { id: uid, name: data.get('name'), role: data.get('role'), pass: data.get('pass'), status: 'Attivo' };
-                await app.dbSet('users', uid, newUser);
-                await app.logAudit('CREATE_USER', uid, `Created user ${newUser.role}`);
-                document.getElementById('modal-create-user').classList.add('hidden');
-                e.target.reset();
-                app.toast('Utente creato', 'success');
-            },
-            renderUsers: () => {
-                const tbody = document.getElementById('users-table-body');
-                tbody.innerHTML = app.db.users.map(u => {
-                     const isSelf = u.id === app.currentUser.id;
-                     const btnText = u.status === 'Attivo' ? 'Blocca' : 'Sblocca';
-                     const btnClass = u.status === 'Attivo' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700';
-                     const actionBtn = isSelf ? '<span class="text-xs text-gray-400">Tu</span>' : `<button onclick="app.toggleUserStatus('${u.id}')" class="${btnClass} px-3 py-1 rounded text-xs font-bold">${btnText}</button>`;
-                     return `<tr class="hover:bg-slate-50"><td class="p-4 font-mono text-sm text-slate-600">${u.id}</td><td class="p-4 font-bold text-slate-700">${u.name}</td><td class="p-4"><span class="px-2 py-1 rounded bg-slate-100 text-xs">${u.role}</span></td><td class="p-4"><span class="${u.status === 'Attivo' ? 'text-green-600' : 'text-red-600'} font-bold text-xs">● ${u.status}</span></td><td class="p-4">${actionBtn}</td></tr>`;
-                }).join('');
-            },
-            toggleUserStatus: async (uid) => {
-                const user = app.db.users.find(u => u.id === uid);
-                const newStatus = user.status === 'Attivo' ? 'Bloccato' : 'Attivo';
-                user.status = newStatus;
-                await app.dbSet('users', uid, user);
-                await app.logAudit('USER_MOD', uid, `Status: ${newStatus}`);
-                app.toast('Stato utente aggiornato', 'success');
-            },
-            renderAudit: () => {
-                const tbody = document.getElementById('audit-table-body');
-                tbody.innerHTML = app.db.auditTrail.map(e => `<tr><td class="p-2 border-b text-slate-500">${new Date(e.ts).toLocaleString()}</td><td class="p-2 border-b font-bold">${e.user}</td><td class="p-2 border-b text-blue-700">${e.action}</td><td class="p-2 border-b">${e.target}</td><td class="p-2 border-b text-slate-600">${e.details}</td></tr>`).join('');
-            },
-            renderTime: () => { if(document.getElementById('system-time')) document.getElementById('system-time').textContent = new Date().toUTCString(); },
-            toast: (msg, type='info') => {
-                const div = document.createElement('div');
-                div.className = `toast ${type==='error'?'bg-red-600':(type==='success'?'bg-green-600':'bg-blue-600')} text-white px-4 py-3 rounded shadow-lg text-sm flex items-center gap-2`;
-                div.innerHTML = `<i class="fas fa-info-circle"></i> ${msg}`;
-                document.getElementById('toast-container').appendChild(div);
-                setTimeout(() => div.remove(), 3000);
-            },
-            modals: {
-                createBR: { show: () => document.getElementById('modal-create-br').classList.remove('hidden') },
-                createUser: { show: () => document.getElementById('modal-create-user').classList.remove('hidden') },
-                addArchive: { show: () => { app.updateParentSelect(); document.getElementById('modal-add-archive').classList.remove('hidden'); } }
-            }
-        };
-
-        // Start App
-        window.addEventListener('DOMContentLoaded', app.init);
-    </script>
-</body>
-</html>
+                    const colRef = collection(db,
