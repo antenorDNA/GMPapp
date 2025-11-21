@@ -101,6 +101,16 @@
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fas fa-lock"></i></span>
                         <input type="password" id="login-password" class="w-full pl-10 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="********" required>
                     </div>
+                    
+                    <!-- LINKS DI EMERGENZA -->
+                    <div class="flex justify-between mt-3 items-center">
+                        <button type="button" onclick="document.getElementById('modal-forgot-password').classList.remove('hidden')" class="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                            Password dimenticata?
+                        </button>
+                        <button type="button" onclick="document.getElementById('modal-unlock-user').classList.remove('hidden')" class="text-xs text-red-600 hover:text-red-800 hover:underline font-bold">
+                            <i class="fas fa-lock-open mr-1"></i>Account Bloccato?
+                        </button>
+                    </div>
                 </div>
                 <button type="submit" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-lg shadow-md transition transform active:scale-95">
                     ACCEDI AL SISTEMA
@@ -375,6 +385,68 @@
 
     <!-- Modals -->
     
+    <!-- MODAL UNLOCK USER (NEW) -->
+    <div id="modal-unlock-user" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 border-t-4 border-green-500">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-lock-open text-green-600 text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">Sblocco Emergenza</h2>
+                <p class="text-sm text-slate-500 mt-2">Procedura di sblocco account d'emergenza.</p>
+            </div>
+            
+            <form id="unlock-user-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">ID Utente da Sbloccare</label>
+                    <input type="text" id="unlock-uid" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Es. OP" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">PIN di Emergenza</label>
+                    <input type="password" id="unlock-pin" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="****" required>
+                </div>
+                
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md mt-4 transition">
+                    Sblocca Utente
+                </button>
+                <div class="text-center mt-2">
+                    <button type="button" onclick="document.getElementById('modal-unlock-user').classList.add('hidden')" class="text-xs text-slate-400 hover:text-slate-600 underline">Annulla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL FORGOT PASSWORD -->
+    <div id="modal-forgot-password" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 border-t-4 border-red-500">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-ambulance text-red-600 text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">Recupero Emergenza</h2>
+                <p class="text-sm text-slate-500 mt-2">Procedura di reset password d'emergenza.</p>
+            </div>
+            
+            <form id="forgot-password-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">ID Utente da Ripristinare</label>
+                    <input type="text" id="forgot-uid" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none" placeholder="Es. OP" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">PIN di Emergenza</label>
+                    <input type="password" id="forgot-pin" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none" placeholder="****" required>
+                </div>
+                
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg shadow-md mt-4 transition">
+                    Ripristina Password
+                </button>
+                <div class="text-center mt-2">
+                    <button type="button" onclick="document.getElementById('modal-forgot-password').classList.add('hidden')" class="text-xs text-slate-400 hover:text-slate-600 underline">Annulla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- MODAL USER PROFILE -->
     <div id="modal-user-profile" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
@@ -593,27 +665,17 @@
         import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURAZIONE FIREBASE (DA COMPILARE) ---
-        // 1. Vai su https://console.firebase.google.com/
-        // 2. Crea un progetto, aggiungi una Web App
-        // 3. Copia l'oggetto firebaseConfig qui sotto:
-        // 4. Assicurati di abilitare "Anonymous Auth" e "Firestore Database" in modalità Test
         const firebaseConfig = {
-apiKey: "AIzaSyCeSKf5EV-Hc4yhWy_MRcAwZVGt2oEDbYE",
-
-authDomain: "gmparchive-80a71.firebaseapp.com",
-
-projectId: "gmparchive-80a71",
-
-storageBucket: "gmparchive-80a71.firebasestorage.app",
-
-messagingSenderId: "883733851688",
-
-appId: "1:883733851688:web:1a2e31872294bf13b70f1d",
-
-measurementId: "G-WLWZ8DH30P"
+			apiKey: "AIzaSyCeSKf5EV-Hc4yhWy_MRcAwZVGt2oEDbYE",
+			authDomain: "gmparchive-80a71.firebaseapp.com",
+			projectId: "gmparchive-80a71",
+			storageBucket: "gmparchive-80a71.firebasestorage.app",
+			messagingSenderId: "883733851688",
+			appId: "1:883733851688:web:1a2e31872294bf13b70f1d",
+			measurementId: "G-WLWZ8DH30P"
         };
         
-        // Path Principale Database (3 SEGMENTI per evitare errori di "Invalid Collection Reference")
+        // Path Principale Database
         const DB_PATH = ['gmp_v2', 'public_demo'];
         
         // Init Firebase
@@ -660,7 +722,6 @@ measurementId: "G-WLWZ8DH30P"
                 { id: 'FALD-2025-001', code: '2025-001', parentId: 'SCAFF-A1', status: 'Disponibile' },
                 { id: 'FALD-VAL-001', code: 'VAL-2025-01', parentId: 'SCAFF-VAL-1A', status: 'Disponibile' }
             ],
-            // Added autoLogoutMinutes default setting here
             systemSettings: [
                 { id: 'security', minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3, autoLogoutMinutes: 15 }
             ]
@@ -716,6 +777,8 @@ measurementId: "G-WLWZ8DH30P"
                 });
 
                 document.getElementById('login-form').addEventListener('submit', app.handleLogin);
+                document.getElementById('forgot-password-form').addEventListener('submit', app.handleForgotPassword);
+                document.getElementById('unlock-user-form').addEventListener('submit', app.handleUnlockUser);
                 document.getElementById('force-change-form').addEventListener('submit', app.handleForcePasswordChange);
                 document.getElementById('security-settings-form').addEventListener('submit', app.handleSaveSecuritySettings);
                 document.getElementById('profile-change-pass-form').addEventListener('submit', app.handleProfilePasswordChange);
@@ -855,9 +918,6 @@ measurementId: "G-WLWZ8DH30P"
                     await app.dbDelete(colName, docId);
                     await app.logAudit('DELETE_DATA', docId, `Deleted ${typeLabel} from ${colName}. Reason: ${comment}`);
                     app.toast(`${typeLabel} Eliminato con successo`, 'success');
-                    
-                    // If deleting archive structure, refresh view might be needed if sync is slow, but realtime listener should handle it.
-                    // Special handling: if deleted current binder in BR view filter, maybe clear filter? Not critical for demo.
                 });
             },
 
@@ -903,6 +963,60 @@ measurementId: "G-WLWZ8DH30P"
                     app.logAudit('LOGIN_FAIL', u, 'Invalid credentials');
                     app.toast('Credenziali non valide', 'error');
                 }
+            },
+            handleForgotPassword: async (e) => {
+                e.preventDefault();
+                const uid = document.getElementById('forgot-uid').value.trim();
+                const pin = document.getElementById('forgot-pin').value.trim();
+                
+                if (pin !== '6661') {
+                    return app.toast('PIN di Emergenza non valido!', 'error');
+                }
+                
+                const user = app.db.users.find(u => u.id === uid);
+                
+                if (!user) {
+                    return app.toast('Utente non trovato.', 'error');
+                }
+                
+                user.pass = 'password123';
+                user.forceReset = true;
+                
+                await app.dbSet('users', user.id, user);
+                await app.logAudit('EMERGENCY_RESET', uid, 'Password reset via Emergency PIN');
+                
+                document.getElementById('modal-forgot-password').classList.add('hidden');
+                document.getElementById('forgot-password-form').reset();
+                app.toast('Password ripristinata a default (password123).', 'success');
+            },
+            handleUnlockUser: async (e) => {
+                e.preventDefault();
+                const uid = document.getElementById('unlock-uid').value.trim();
+                const pin = document.getElementById('unlock-pin').value.trim();
+
+                if (pin !== '6661') {
+                    return app.toast('PIN di Emergenza non valido!', 'error');
+                }
+
+                const user = app.db.users.find(u => u.id === uid);
+
+                if (!user) {
+                    return app.toast('Utente non trovato.', 'error');
+                }
+
+                if (user.status === 'Attivo') {
+                    return app.toast('Utente già attivo.', 'info');
+                }
+
+                user.status = 'Attivo';
+                // Optional: Reset attempts if any logic used them, though simplistic here.
+                
+                await app.dbSet('users', user.id, user);
+                await app.logAudit('EMERGENCY_UNLOCK', uid, 'Account unlocked via Emergency PIN');
+
+                document.getElementById('modal-unlock-user').classList.add('hidden');
+                document.getElementById('unlock-user-form').reset();
+                app.toast('Utente sbloccato con successo.', 'success');
             },
             logout: () => {
                 if(app.currentUser) app.logAudit('LOGOUT', app.currentUser.id, 'User logged out');
