@@ -599,11 +599,17 @@
         // 4. Assicurati di abilitare "Anonymous Auth" e "Firestore Database" in modalità Test
         const firebaseConfig = {
 apiKey: "AIzaSyCeSKf5EV-Hc4yhWy_MRcAwZVGt2oEDbYE",
+
 authDomain: "gmparchive-80a71.firebaseapp.com",
+
 projectId: "gmparchive-80a71",
+
 storageBucket: "gmparchive-80a71.firebasestorage.app",
+
 messagingSenderId: "883733851688",
+
 appId: "1:883733851688:web:1a2e31872294bf13b70f1d",
+
 measurementId: "G-WLWZ8DH30P"
         };
         
@@ -1388,14 +1394,38 @@ measurementId: "G-WLWZ8DH30P"
                 e.preventDefault();
                 const data = new FormData(e.target);
                 const type = data.get('type');
-                const name = data.get('name');
+                const name = data.get('name').trim(); // Rimuove spazi extra
                 const parentId = data.get('parentId');
+                
+                // Determina nome collezione
+                let collectionName = type + 's';
+                if (type === 'shelf') collectionName = 'shelves';
+
+                // --- CONTROLLO DUPLICATI ---
+                const existingItems = app.db[collectionName] || [];
+                let isDuplicate = false;
+
+                if (type === 'archive') {
+                    // Per gli archivi (root), il nome deve essere unico globale
+                    isDuplicate = existingItems.some(item => item.name.toLowerCase() === name.toLowerCase());
+                } else {
+                    // Per i figli, il nome deve essere unico SOLO all'interno dello stesso genitore
+                    isDuplicate = existingItems.some(item => {
+                        // Gestione specifica per i Faldoni che usano 'code' invece di 'name'
+                        const itemName = (type === 'binder' ? item.code : item.name) || '';
+                        return item.parentId === parentId && itemName.toLowerCase() === name.toLowerCase();
+                    });
+                }
+
+                if (isDuplicate) {
+                    return app.toast(`ERRORE: Esiste già un elemento chiamato "${name}" in questa posizione!`, 'error');
+                }
+                // ---------------------------
+
                 const id = type.toUpperCase().substring(0,4) + '-' + Date.now();
                 const item = { id, name, parentId };
                 if(type === 'binder') { item.code = name; delete item.name; item.status = 'Disponibile'; }
                 
-                let collectionName = type + 's';
-                if (type === 'shelf') collectionName = 'shelves';
                 await app.dbSet(collectionName, id, item);
                 await app.logAudit('ADD_ARCHIVE', id, `Added ${type}: ${name}`);
                 app.toast('Elemento aggiunto', 'success');
