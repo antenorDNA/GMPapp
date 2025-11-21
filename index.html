@@ -58,7 +58,6 @@
             <i class="fas fa-exclamation-triangle text-xl mb-2"></i><br>
             <strong>Problema di Configurazione Rilevato:</strong> <span id="config-error-detail"></span><br><br>
             <ul class="text-left list-disc ml-4 space-y-1">
-                <li>Assicurati di aver incollato la tua <code>firebaseConfig</code> nel codice.</li>
                 <li>Controlla di aver impostato le <strong>Regole Firestore</strong> su <code>allow read, write: if true;</code>.</li>
                 <li>Verifica che l'Autenticazione "Anonima" sia abilitata.</li>
             </ul>
@@ -156,7 +155,7 @@
                 </button>
             </nav>
             
-            <!-- USER PROFILE SECTION (MODIFIED) -->
+            <!-- USER PROFILE SECTION -->
             <div onclick="app.modals.userProfile.show()" class="p-4 bg-slate-800 border-t border-slate-700 cursor-pointer hover:bg-slate-700 transition group relative">
                  <!-- Tooltip -->
                  <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">Gestisci Profilo</div>
@@ -232,21 +231,25 @@
                     </div>
                     
                     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                        <h3 class="text-xl font-bold text-slate-800 mb-6">Criteri Complessità Password</h3>
+                        <h3 class="text-xl font-bold text-slate-800 mb-6">Criteri Complessità Password & Sessione</h3>
                         <form id="security-settings-form" class="space-y-6">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">Lunghezza Minima</label>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Lunghezza Minima PWD</label>
                                     <input type="number" name="minLength" id="sec-min-length" class="w-full p-2 border rounded" min="4" max="32">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Scadenza Password (Giorni)</label>
                                     <input type="number" name="expiryDays" id="sec-expiry" class="w-full p-2 border rounded" min="0">
-                                    <p class="text-xs text-slate-500 mt-1">0 = Nessuna scadenza</p>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Max Tentativi Login</label>
                                     <input type="number" name="maxAttempts" id="sec-attempts" class="w-full p-2 border rounded" min="1" max="10">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Timeout Inattività (Minuti)</label>
+                                    <input type="number" name="autoLogout" id="sec-auto-logout" class="w-full p-2 border rounded" min="1" max="60">
+                                    <p class="text-xs text-slate-500 mt-1">Tempo di inattività prima del logout forzato.</p>
                                 </div>
                             </div>
                             <div class="space-y-3">
@@ -372,7 +375,7 @@
 
     <!-- Modals -->
     
-    <!-- MODAL USER PROFILE (NEW) -->
+    <!-- MODAL USER PROFILE -->
     <div id="modal-user-profile" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
             <div class="flex justify-between items-start mb-6">
@@ -595,13 +598,13 @@
         // 3. Copia l'oggetto firebaseConfig qui sotto:
         // 4. Assicurati di abilitare "Anonymous Auth" e "Firestore Database" in modalità Test
         const firebaseConfig = {
-			apiKey: "AIzaSyCeSKf5EV-Hc4yhWy_MRcAwZVGt2oEDbYE",
-			authDomain: "gmparchive-80a71.firebaseapp.com",
-			projectId: "gmparchive-80a71",
-			storageBucket: "gmparchive-80a71.firebasestorage.app",
-			messagingSenderId: "883733851688",
-			appId: "1:883733851688:web:1a2e31872294bf13b70f1d",
-			measurementId: "G-WLWZ8DH30P"
+apiKey: "AIzaSyCeSKf5EV-Hc4yhWy_MRcAwZVGt2oEDbYE",
+authDomain: "gmparchive-80a71.firebaseapp.com",
+projectId: "gmparchive-80a71",
+storageBucket: "gmparchive-80a71.firebasestorage.app",
+messagingSenderId: "883733851688",
+appId: "1:883733851688:web:1a2e31872294bf13b70f1d",
+measurementId: "G-WLWZ8DH30P"
         };
         
         // Path Principale Database (3 SEGMENTI per evitare errori di "Invalid Collection Reference")
@@ -651,8 +654,9 @@
                 { id: 'FALD-2025-001', code: '2025-001', parentId: 'SCAFF-A1', status: 'Disponibile' },
                 { id: 'FALD-VAL-001', code: 'VAL-2025-01', parentId: 'SCAFF-VAL-1A', status: 'Disponibile' }
             ],
+            // Added autoLogoutMinutes default setting here
             systemSettings: [
-                { id: 'security', minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3 }
+                { id: 'security', minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3, autoLogoutMinutes: 15 }
             ]
         };
 
@@ -660,11 +664,17 @@
             db: { users:[], products:[], archives:[], cupboards:[], shelves:[], binders:[], batchRecords:[], loans:[], auditTrail:[], systemSettings: [] },
             currentUser: null,
             listeners: [],
-            loadedCollections: new Set(), 
+            loadedCollections: new Set(),
+            lastActivity: Date.now(), // Initialize last activity time
             
             init: async () => {
                 app.renderTime();
                 setInterval(app.renderTime, 1000);
+                
+                // Add activity listeners
+                document.addEventListener('mousemove', () => app.lastActivity = Date.now());
+                document.addEventListener('keydown', () => app.lastActivity = Date.now());
+                document.addEventListener('click', () => app.lastActivity = Date.now());
                 
                 if(!auth) {
                     document.getElementById('loading-text').textContent = "Errore Configurazione Firebase. Vedi Console.";
@@ -711,6 +721,10 @@
                 document.getElementById('add-archive-form').addEventListener('submit', app.handleAddArchive);
                 document.getElementById('br-search').addEventListener('input', app.renderBatchRecords);
                 document.getElementById('br-filter-status').addEventListener('change', app.renderBatchRecords);
+            },
+
+            isAdmin: () => {
+                return app.currentUser && app.currentUser.role === 'Amministratore';
             },
 
             startSync: (user) => {
@@ -824,6 +838,23 @@
                 } catch(e) { app.handleError(e); }
             },
 
+            // Generic Delete Function for Admin
+            deleteData: (colName, docId, typeLabel) => {
+                if(!app.isAdmin()) return;
+                if(colName === 'users') return app.toast('Impossibile cancellare utenti!', 'error');
+
+                if(!confirm(`Sei sicuro di voler eliminare definitivamente ${typeLabel}: ${docId}?`)) return;
+
+                app.triggerESig('DELETE_DATA_' + colName.toUpperCase(), async (comment) => {
+                    await app.dbDelete(colName, docId);
+                    await app.logAudit('DELETE_DATA', docId, `Deleted ${typeLabel} from ${colName}. Reason: ${comment}`);
+                    app.toast(`${typeLabel} Eliminato con successo`, 'success');
+                    
+                    // If deleting archive structure, refresh view might be needed if sync is slow, but realtime listener should handle it.
+                    // Special handling: if deleted current binder in BR view filter, maybe clear filter? Not critical for demo.
+                });
+            },
+
             handleError: (e) => {
                 console.error(e);
                 app.toast("Errore Database: " + e.message, "error");
@@ -858,6 +889,7 @@
                     }
 
                     app.currentUser = user;
+                    app.lastActivity = Date.now(); // Reset activity on login
                     app.logAudit('LOGIN_SUCCESS', user.id, 'User logged in');
                     app.showApp();
                     document.getElementById('login-form').reset();
@@ -874,6 +906,21 @@
                 document.getElementById('login-screen').classList.remove('hidden');
                 document.getElementById('modal-force-password-change').classList.add('hidden');
                 document.getElementById('modal-user-profile').classList.add('hidden');
+            },
+            // New Auto Logout Trigger
+            triggerAutoLogout: async () => {
+                if(!app.currentUser) return;
+                
+                // BUG 4: LOGOUT AUTOMATICO - AUDIT TRAIL INCOMPRENSIBILE
+                await app.logAudit('AUTO_LOGOUT', app.currentUser.id, 'ERR_REF_NULL_PTR_0x8842_bAd_dAtA_sTrEaM');
+                
+                app.currentUser = null;
+                app.tempUserForReset = null;
+                document.getElementById('app-layout').classList.add('hidden');
+                document.getElementById('login-screen').classList.remove('hidden');
+                document.getElementById('modal-force-password-change').classList.add('hidden');
+                document.getElementById('modal-user-profile').classList.add('hidden');
+                app.toast('Sessione scaduta per inattività', 'error');
             },
             showApp: () => {
                 document.getElementById('login-screen').classList.add('hidden');
@@ -919,13 +966,15 @@
 
             // --- SECURITY & PROFILE ---
             getSecurityPolicy: () => {
-                return app.db.systemSettings.find(s => s.id === 'security') || { minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3 };
+                // Added default autoLogoutMinutes: 15
+                return app.db.systemSettings.find(s => s.id === 'security') || { minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3, autoLogoutMinutes: 15 };
             },
             renderSecuritySettings: () => {
                 const policy = app.getSecurityPolicy();
                 document.getElementById('sec-min-length').value = policy.minLength;
                 document.getElementById('sec-expiry').value = policy.expiryDays;
                 document.getElementById('sec-attempts').value = policy.maxAttempts;
+                document.getElementById('sec-auto-logout').value = policy.autoLogoutMinutes || 15; // Bind new field
                 document.getElementById('sec-req-num').checked = policy.requireNumber;
                 document.getElementById('sec-req-spec').checked = policy.requireSpecial;
                 document.getElementById('sec-req-upper').checked = policy.requireUpper;
@@ -938,6 +987,7 @@
                          minLength: parseInt(document.getElementById('sec-min-length').value),
                          expiryDays: parseInt(document.getElementById('sec-expiry').value),
                          maxAttempts: parseInt(document.getElementById('sec-attempts').value),
+                         autoLogoutMinutes: parseInt(document.getElementById('sec-auto-logout').value), // Save new field
                          requireNumber: document.getElementById('sec-req-num').checked,
                          requireSpecial: document.getElementById('sec-req-spec').checked,
                          requireUpper: document.getElementById('sec-req-upper').checked
@@ -946,6 +996,16 @@
                      await app.logAudit('SEC_POLICY_UPDATE', 'SYSTEM', `Policy updated. Reason: ${comment}`);
                      app.toast('Policy di Sicurezza Aggiornata', 'success');
                 });
+            },
+            checkAutoLogout: () => {
+                if (!app.currentUser) return;
+                const policy = app.getSecurityPolicy();
+                const timeoutMinutes = policy.autoLogoutMinutes || 15;
+                const timeoutMs = timeoutMinutes * 60 * 1000;
+                
+                if (Date.now() - app.lastActivity > timeoutMs) {
+                    app.triggerAutoLogout();
+                }
             },
             handleProfilePasswordChange: async (e) => {
                 e.preventDefault();
@@ -1056,7 +1116,7 @@
                         <td class="p-4">${p.name}</td>
                         <td class="p-4 text-slate-500 text-sm">${p.desc}</td>
                         <td class="p-4 text-right">
-                            <button onclick="app.deleteProduct('${p.id}')" class="text-red-600 hover:text-red-800 text-sm"><i class="fas fa-trash"></i> Elimina</button>
+                            ${app.isAdmin() ? `<button onclick="app.deleteData('products', '${p.id}', 'Prodotto')" class="text-red-600 hover:text-red-800 text-sm ml-2"><i class="fas fa-trash"></i> Elimina</button>` : ''}
                         </td>
                     </tr>
                 `).join('');
@@ -1267,6 +1327,10 @@
                     let actions = '';
                     if(br.status === 'In Archiviazione') actions += `<button onclick="app.openArchiveSelector('${br.id}')" class="text-blue-600 hover:underline text-sm mr-2">Archivia</button>`;
                     else if (br.status === 'Archiviato') actions += `<button onclick="app.requestLoan('${br.id}')" class="text-purple-600 hover:underline text-sm">Richiedi Prestito</button>`;
+                    
+                    // ADMIN DELETE
+                    if(app.isAdmin()) actions += `<button onclick="app.deleteData('batchRecords', '${br.id}', 'BatchRecord')" class="ml-2 text-red-500 hover:text-red-700" title="Elimina Definitivamente"><i class="fas fa-trash"></i></button>`;
+
                     tbody.innerHTML += `<tr class="hover:bg-slate-50 transition">
                         <td class="p-4 font-mono text-sm text-slate-600">${br.id}</td>
                         <td class="p-4 font-bold text-slate-700">${br.wo}</td>
@@ -1278,40 +1342,21 @@
                     </tr>`;
                 });
             },
-            renderLoans: () => {
-                const pendingList = document.getElementById('loans-pending-list');
-                const approvalPanel = document.getElementById('loan-approvals-panel');
-                // Logica aggiornata: Tutte le richieste pending vengono mostrate a Supervisor/Admin
-                if(['Supervisore', 'Amministratore'].includes(app.currentUser.role)) {
-                    const pendings = app.db.loans.filter(l => l.status === 'PENDING');
-                    approvalPanel.classList.toggle('hidden', pendings.length === 0);
-                    pendingList.innerHTML = pendings.map(l => {
-                        const br = app.db.batchRecords.find(b => b.id === l.brId);
-                        return `<div class="bg-white p-3 rounded border border-yellow-300 flex justify-between items-center"><div><div class="font-bold text-sm">${br.wo}</div><div class="text-xs text-slate-500">Richiesto da: ${l.userId}</div></div><div class="flex gap-2"><button onclick="app.rejectLoan('${l.id}')" class="text-red-600 text-xs">Rifiuta</button><button onclick="app.approveLoan('${l.id}')" class="bg-green-600 text-white text-xs px-3 py-1 rounded">Approva</button></div></div>`;
-                    }).join('');
-                } else { approvalPanel.classList.add('hidden'); }
-                
-                const tbody = document.getElementById('loans-active-body');
-                tbody.innerHTML = '';
-                app.db.loans.filter(l => l.status === 'ACTIVE').forEach(l => {
-                    const br = app.db.batchRecords.find(b => b.id === l.brId);
-                    // Per restituire: Se sei l'utente che l'ha preso O se sei un Admin (override)
-                    let canReturn = (l.userId === app.currentUser.id || app.currentUser.role === 'Amministratore');
-                    let action = canReturn ? `<button onclick="app.returnLoan('${l.id}')" class="text-blue-600 hover:underline text-sm font-bold">Restituisci</button>` : `<span class="text-slate-400 italic text-xs">In uso da altri</span>`;
-                    tbody.innerHTML += `<tr><td class="p-3 font-bold text-slate-700">${br.wo}</td><td class="p-3"><span class="bg-slate-100 px-2 py-1 rounded text-xs font-mono">${l.userId}</span></td><td class="p-3 text-xs">${new Date(l.outDate).toLocaleString()}</td><td class="p-3 text-xs">${l.approvedBy || '-'}</td><td class="p-3"><span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold">Attivo</span></td><td class="p-3 text-right">${action}</td></tr>`;
-                });
-            },
-            // ... rest of standard render functions (archive, audit, users) ...
             renderArchiveTree: () => {
                 const container = document.getElementById('archive-tree');
                 container.innerHTML = '';
                 let html = '';
                 app.db.archives.forEach(arch => {
-                    html += `<div class="font-bold text-blue-800 p-2 bg-blue-50 rounded mb-1"><i class="fas fa-building mr-2"></i>${arch.name}</div>`;
+                    const delArch = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('archives', '${arch.id}', 'Archivio')" class="float-right text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>` : '';
+                    html += `<div class="font-bold text-blue-800 p-2 bg-blue-50 rounded mb-1 group"><i class="fas fa-building mr-2"></i>${arch.name} ${delArch}</div>`;
+                    
                     app.db.cupboards.filter(c => c.parentId === arch.id).forEach(cup => {
-                        html += `<div class="ml-4 text-slate-700 p-1 hover:bg-slate-100 cursor-pointer rounded" onclick="app.showNodeContent('cupboard', '${cup.id}')"><i class="fas fa-door-closed mr-2"></i>${cup.name}</div>`;
+                        const delCup = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('cupboards', '${cup.id}', 'Armadio')" class="float-right text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash"></i></button>` : '';
+                        html += `<div class="ml-4 text-slate-700 p-1 hover:bg-slate-100 cursor-pointer rounded group" onclick="app.showNodeContent('cupboard', '${cup.id}')"><i class="fas fa-door-closed mr-2"></i>${cup.name} ${delCup}</div>`;
+                        
                         app.db.shelves.filter(s => s.parentId === cup.id).forEach(shelf => {
-                            html += `<div class="ml-8 text-slate-600 p-1 hover:bg-slate-100 cursor-pointer rounded" onclick="app.showNodeContent('shelf', '${shelf.id}')"><i class="fas fa-layer-group mr-2"></i>${shelf.name}</div>`;
+                            const delShelf = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('shelves', '${shelf.id}', 'Scaffale')" class="float-right text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash"></i></button>` : '';
+                            html += `<div class="ml-8 text-slate-600 p-1 hover:bg-slate-100 cursor-pointer rounded group" onclick="app.showNodeContent('shelf', '${shelf.id}')"><i class="fas fa-layer-group mr-2"></i>${shelf.name} ${delShelf}</div>`;
                         });
                     });
                 });
@@ -1326,7 +1371,10 @@
                     if(binders.length === 0) html += `<p class="text-slate-400 col-span-3">Nessun faldone.</p>`;
                     binders.forEach(b => {
                         const count = app.db.batchRecords.filter(br => br.binderId === b.id).length;
-                        html += `<div class="border border-slate-300 rounded-lg p-4 hover:shadow-md transition cursor-pointer bg-blue-50" onclick="app.openBinder('${b.id}')">
+                        const delBinder = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('binders', '${b.id}', 'Faldone')" class="absolute top-2 right-2 text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>` : '';
+                        
+                        html += `<div class="border border-slate-300 rounded-lg p-4 hover:shadow-md transition cursor-pointer bg-blue-50 relative" onclick="app.openBinder('${b.id}')">
+                                ${delBinder}
                                 <div class="flex justify-between items-start"><i class="fas fa-folder text-3xl text-blue-400"></i><span class="bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded-full">${count} BR</span></div>
                                 <div class="mt-2 font-bold text-slate-700">${b.code}</div><div class="text-xs text-slate-500">ID: ${b.id}</div></div>`;
                     });
@@ -1465,7 +1513,11 @@
                 const tbody = document.getElementById('audit-table-body');
                 tbody.innerHTML = app.db.auditTrail.map(e => `<tr><td class="p-2 border-b text-slate-500">${new Date(e.ts).toLocaleString()}</td><td class="p-2 border-b font-bold">${e.user}</td><td class="p-2 border-b text-blue-700">${e.action}</td><td class="p-2 border-b">${e.target}</td><td class="p-2 border-b text-slate-600">${e.details}</td></tr>`).join('');
             },
-            renderTime: () => { if(document.getElementById('system-time')) document.getElementById('system-time').textContent = new Date().toUTCString(); },
+            renderTime: () => { 
+                if(document.getElementById('system-time')) document.getElementById('system-time').textContent = new Date().toUTCString();
+                // Check auto-logout every second
+                app.checkAutoLogout();
+            },
             toast: (msg, type='info') => {
                 const div = document.createElement('div');
                 div.className = `toast ${type==='error'?'bg-red-600':(type==='success'?'bg-green-600':'bg-blue-600')} text-white px-4 py-3 rounded shadow-lg text-sm flex items-center gap-2`;
