@@ -1688,7 +1688,7 @@
                 tbody.innerHTML = app.db.auditTrail.map(e => `<tr><td class="p-2 border-b text-slate-500">${new Date(e.ts).toLocaleString()}</td><td class="p-2 border-b font-bold">${e.user}</td><td class="p-2 border-b text-blue-700">${e.action}</td><td class="p-2 border-b">${e.target}</td><td class="p-2 border-b text-slate-600">${e.details}</td></tr>`).join('');
             },
             renderTime: () => { 
-                if(document.getElementById('system-time')) document.getElementById('system-time').textContent = new Date().toUTCString();
+                if(document.getElementById('system-time')) document.getElementById('system-time').textContent = new Date().toLocaleString('it-IT');
                 // Check auto-logout every second
                 app.checkAutoLogout();
             },
