@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GMP-ArchiveSys | Cloud Edition</title>
+    <title>GMP-ArchiveSys | Shared Cloud</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
@@ -21,7 +21,7 @@
         
         /* Loading Overlay */
         #loading-overlay {
-            position: fixed; inset: 0; background: rgba(255,255,255,0.9); 
+            position: fixed; inset: 0; background: rgba(255,255,255,0.98); 
             z-index: 100; display: flex; flex-direction: column; 
             align-items: center; justify-content: center;
             transition: opacity 0.5s ease-out;
@@ -30,15 +30,39 @@
             opacity: 0;
             pointer-events: none;
         }
+        
+        /* Status Indicator Pulse */
+        @keyframes pulse-green {
+            0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        .status-live {
+            animation: pulse-green 2s infinite;
+        }
     </style>
 </head>
 <body class="bg-slate-100 text-slate-800 h-screen flex flex-col overflow-hidden">
     <!-- Loading Screen -->
     <div id="loading-overlay">
         <div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-blue-600 mb-4"></div>
-        <h2 class="text-xl font-bold text-slate-700">Connessione al Cloud...</h2>
-        <p class="text-slate-500 text-sm" id="loading-text">Inizializzazione...</p>
-        <!-- Pulsante di emergenza se si blocca -->
+        <h2 class="text-xl font-bold text-slate-700">Connessione al Database Condiviso...</h2>
+        <p class="text-slate-500 text-sm mt-2" id="loading-text">Inizializzazione...</p>
+        
+        <!-- Debug Info (Visible only if slow) -->
+        <div id="loading-debug" class="text-xs text-slate-400 mt-4 font-mono hidden">
+            In attesa di: <span id="waiting-list">...</span>
+        </div>
+
+        <div id="config-error-msg" class="hidden mt-6 p-4 bg-red-50 text-red-700 border border-red-200 rounded text-xs max-w-md text-center">
+            <i class="fas fa-exclamation-triangle text-xl mb-2"></i><br>
+            <strong>Problema di Configurazione Rilevato:</strong> <span id="config-error-detail"></span><br><br>
+            <ul class="text-left list-disc ml-4 space-y-1">
+                <li>Controlla di aver impostato le <strong>Regole Firestore</strong> su <code>allow read, write: if true;</code>.</li>
+                <li>Verifica che l'Autenticazione "Anonima" sia abilitata.</li>
+            </ul>
+        </div>
+
         <button onclick="app.checkCompletion(true)" class="mt-8 text-xs text-slate-400 underline hover:text-slate-600 cursor-pointer z-50">
             Forza avvio (se bloccato)
         </button>
@@ -46,10 +70,21 @@
 
     <!-- ================= LOGIN SCREEN ================= -->
     <div id="login-screen" class="fixed inset-0 z-50 bg-slate-200 flex items-center justify-center hidden">
-        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-blue-600">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border-t-4 border-blue-600 relative overflow-hidden">
+            <!-- Badge Environment -->
+            <div class="absolute top-0 right-0 bg-green-500 text-white text-[10px] px-3 py-1 rounded-bl-lg font-bold uppercase tracking-wider">
+                Live Environment
+            </div>
+
             <div class="text-center mb-8">
                 <h1 class="text-3xl font-bold text-blue-800">GMP-ArchiveSys</h1>
-                <p class="text-slate-500 text-sm mt-2">Cloud Edition (Firebase)</p>
+                <div class="flex items-center justify-center gap-2 mt-3 text-sm text-slate-600 bg-slate-100 py-1.5 px-4 rounded-full w-fit mx-auto border border-slate-200">
+                    <div class="w-2.5 h-2.5 bg-green-500 rounded-full status-live"></div>
+                    Cloud DB: <span class="font-mono font-bold text-slate-800">gmp_v2/public</span>
+                </div>
+                <p class="text-slate-400 text-xs mt-2 max-w-xs mx-auto">
+                    Tutti i dati inseriti qui sono visibili in tempo reale a chiunque acceda a questo link.
+                </p>
             </div>
             
             <form id="login-form" class="space-y-6">
@@ -65,6 +100,16 @@
                     <div class="relative">
                         <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400"><i class="fas fa-lock"></i></span>
                         <input type="password" id="login-password" class="w-full pl-10 p-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition" placeholder="********" required>
+                    </div>
+                    
+                    <!-- LINKS DI EMERGENZA -->
+                    <div class="flex justify-between mt-3 items-center">
+                        <button type="button" onclick="document.getElementById('modal-forgot-password').classList.remove('hidden')" class="text-xs text-blue-600 hover:text-blue-800 hover:underline">
+                            Password dimenticata?
+                        </button>
+                        <button type="button" onclick="document.getElementById('modal-unlock-user').classList.remove('hidden')" class="text-xs text-red-600 hover:text-red-800 hover:underline font-bold">
+                            <i class="fas fa-lock-open mr-1"></i>Account Bloccato?
+                        </button>
                     </div>
                 </div>
                 <button type="submit" class="w-full bg-blue-700 hover:bg-blue-800 text-white font-bold py-3 rounded-lg shadow-md transition transform active:scale-95">
@@ -89,7 +134,7 @@
             <div class="p-6 border-b border-slate-700">
                 <div class="text-xl font-bold tracking-tight">GMP-ArchiveSys</div>
                 <div class="text-xs text-slate-400 mt-1 flex items-center gap-2">
-                    <div class="w-2 h-2 rounded-full bg-green-500"></div> Cloud Connected
+                    <div class="w-2 h-2 rounded-full bg-green-500 status-live"></div> Connesso e Sincronizzato
                 </div>
             </div>
             <nav class="flex-1 py-6 space-y-1 px-3">
@@ -119,15 +164,21 @@
                     <i class="fas fa-clipboard-list w-5"></i> Audit Trail
                 </button>
             </nav>
-            <div class="p-4 bg-slate-800 border-t border-slate-700">
+            
+            <!-- USER PROFILE SECTION -->
+            <div onclick="app.modals.userProfile.show()" class="p-4 bg-slate-800 border-t border-slate-700 cursor-pointer hover:bg-slate-700 transition group relative">
+                 <!-- Tooltip -->
+                 <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-black text-white text-xs rounded opacity-0 group-hover:opacity-100 transition pointer-events-none">Gestisci Profilo</div>
+                 
                 <div class="flex items-center gap-3 mb-3">
-                    <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-lg" id="user-avatar">U</div>
+                    <div class="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center font-bold text-lg text-white" id="user-avatar">U</div>
                     <div class="overflow-hidden">
-                        <div class="text-sm font-bold truncate" id="user-name">User Name</div>
+                        <div class="text-sm font-bold truncate text-white" id="user-name">User Name</div>
                         <div class="text-xs text-slate-400 truncate" id="user-role">Role</div>
                     </div>
+                    <i class="fas fa-cog text-slate-500 ml-auto group-hover:text-white transition"></i>
                 </div>
-                <button onclick="app.logout()" class="w-full bg-red-600/20 hover:bg-red-600 text-red-200 hover:text-white text-sm py-2 rounded border border-red-600/30 transition">
+                <button onclick="event.stopPropagation(); app.logout()" class="w-full bg-red-600/20 hover:bg-red-600 text-red-200 hover:text-white text-sm py-2 rounded border border-red-600/30 transition">
                     <i class="fas fa-sign-out-alt mr-2"></i> Logout
                 </button>
             </div>
@@ -182,7 +233,7 @@
                     </div>
                 </div>
 
-                <!-- SECURITY SETTINGS (NEW) -->
+                <!-- SECURITY SETTINGS -->
                 <div id="view-security" class="view-section hidden space-y-6">
                     <div class="bg-red-50 border border-red-200 p-4 rounded-lg mb-6">
                         <h3 class="text-red-800 font-bold flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i> Area Critica CFR 21 Part 11</h3>
@@ -190,21 +241,25 @@
                     </div>
                     
                     <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                        <h3 class="text-xl font-bold text-slate-800 mb-6">Criteri Complessità Password</h3>
+                        <h3 class="text-xl font-bold text-slate-800 mb-6">Criteri Complessità Password & Sessione</h3>
                         <form id="security-settings-form" class="space-y-6">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-700 mb-1">Lunghezza Minima</label>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Lunghezza Minima PWD</label>
                                     <input type="number" name="minLength" id="sec-min-length" class="w-full p-2 border rounded" min="4" max="32">
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Scadenza Password (Giorni)</label>
                                     <input type="number" name="expiryDays" id="sec-expiry" class="w-full p-2 border rounded" min="0">
-                                    <p class="text-xs text-slate-500 mt-1">0 = Nessuna scadenza</p>
                                 </div>
                                 <div>
                                     <label class="block text-sm font-medium text-slate-700 mb-1">Max Tentativi Login</label>
                                     <input type="number" name="maxAttempts" id="sec-attempts" class="w-full p-2 border rounded" min="1" max="10">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-slate-700 mb-1">Timeout Inattività (Minuti)</label>
+                                    <input type="number" name="autoLogout" id="sec-auto-logout" class="w-full p-2 border rounded" min="1" max="60">
+                                    <p class="text-xs text-slate-500 mt-1">Tempo di inattività prima del logout forzato.</p>
                                 </div>
                             </div>
                             <div class="space-y-3">
@@ -330,6 +385,115 @@
 
     <!-- Modals -->
     
+    <!-- MODAL UNLOCK USER (NEW) -->
+    <div id="modal-unlock-user" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 border-t-4 border-green-500">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-lock-open text-green-600 text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">Sblocco Emergenza</h2>
+                <p class="text-sm text-slate-500 mt-2">Procedura di sblocco account d'emergenza.</p>
+            </div>
+            
+            <form id="unlock-user-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">ID Utente da Sbloccare</label>
+                    <input type="text" id="unlock-uid" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="Es. OP" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">PIN di Emergenza</label>
+                    <input type="password" id="unlock-pin" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none" placeholder="****" required>
+                </div>
+                
+                <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-lg shadow-md mt-4 transition">
+                    Sblocca Utente
+                </button>
+                <div class="text-center mt-2">
+                    <button type="button" onclick="document.getElementById('modal-unlock-user').classList.add('hidden')" class="text-xs text-slate-400 hover:text-slate-600 underline">Annulla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL FORGOT PASSWORD -->
+    <div id="modal-forgot-password" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 border-t-4 border-red-500">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-ambulance text-red-600 text-2xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">Recupero Emergenza</h2>
+                <p class="text-sm text-slate-500 mt-2">Procedura di reset password d'emergenza.</p>
+            </div>
+            
+            <form id="forgot-password-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">ID Utente da Ripristinare</label>
+                    <input type="text" id="forgot-uid" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none" placeholder="Es. OP" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 uppercase mb-1">PIN di Emergenza</label>
+                    <input type="password" id="forgot-pin" class="w-full p-3 border rounded-lg focus:ring-2 focus:ring-red-500 outline-none" placeholder="****" required>
+                </div>
+                
+                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-lg shadow-md mt-4 transition">
+                    Ripristina Password
+                </button>
+                <div class="text-center mt-2">
+                    <button type="button" onclick="document.getElementById('modal-forgot-password').classList.add('hidden')" class="text-xs text-slate-400 hover:text-slate-600 underline">Annulla</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL USER PROFILE -->
+    <div id="modal-user-profile" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-start mb-6">
+                <div>
+                    <h3 class="text-xl font-bold text-slate-800">Profilo Utente</h3>
+                    <p class="text-sm text-slate-500">Gestione credenziali e info</p>
+                </div>
+                <button onclick="document.getElementById('modal-user-profile').classList.add('hidden')" class="text-slate-400 hover:text-slate-600"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100">
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs text-slate-500 uppercase font-bold">ID Utente</span>
+                    <span class="text-sm font-bold text-slate-700" id="profile-uid">...</span>
+                </div>
+                <div class="flex justify-between mb-1">
+                    <span class="text-xs text-slate-500 uppercase font-bold">Nome</span>
+                    <span class="text-sm font-bold text-slate-700" id="profile-name">...</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-xs text-slate-500 uppercase font-bold">Ruolo</span>
+                    <span class="text-sm font-bold text-blue-700" id="profile-role">...</span>
+                </div>
+            </div>
+
+            <form id="profile-change-pass-form" class="space-y-4">
+                <h4 class="font-bold text-sm text-slate-700 border-b pb-2">Modifica Password</h4>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1 required">Vecchia Password</label>
+                    <input type="password" id="profile-old-pass" class="w-full p-2 border rounded text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1 required">Nuova Password</label>
+                    <input type="password" id="profile-new-pass" class="w-full p-2 border rounded text-sm" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1 required">Conferma Nuova Password</label>
+                    <input type="password" id="profile-confirm-pass" class="w-full p-2 border rounded text-sm" required>
+                </div>
+                <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded text-sm transition">
+                    Aggiorna Password
+                </button>
+            </form>
+        </div>
+    </div>
+
     <!-- MODAL FORCE PASSWORD CHANGE -->
     <div id="modal-force-password-change" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/90 backdrop-blur-md">
         <div class="bg-white rounded-xl shadow-2xl w-full max-w-md p-8 border-t-4 border-orange-500">
@@ -501,10 +665,6 @@
         import { getFirestore, collection, doc, setDoc, addDoc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- CONFIGURAZIONE FIREBASE (DA COMPILARE) ---
-        // 1. Vai su https://console.firebase.google.com/
-        // 2. Crea un progetto, aggiungi una Web App
-        // 3. Copia l'oggetto firebaseConfig qui sotto:
-        // 4. Assicurati di abilitare "Anonymous Auth" e "Firestore Database" in modalità Test
         const firebaseConfig = {
 			apiKey: "AIzaSyCeSKf5EV-Hc4yhWy_MRcAwZVGt2oEDbYE",
 			authDomain: "gmparchive-80a71.firebaseapp.com",
@@ -515,18 +675,23 @@
 			measurementId: "G-WLWZ8DH30P"
         };
         
-        const appId = 'gmp-public-demo'; // Nome fisso per l'app pubblica
+        // Path Principale Database
+        const DB_PATH = ['gmp_v2', 'public_demo'];
         
         // Init Firebase
         let auth, db;
-        // Simple check if config is filled (not strict validation)
+        
         if (firebaseConfig.apiKey !== "INSERISCI_API_KEY_QUI") {
-            const fbApp = initializeApp(firebaseConfig);
-            auth = getAuth(fbApp);
-            db = getFirestore(fbApp);
+            try {
+                const fbApp = initializeApp(firebaseConfig);
+                auth = getAuth(fbApp);
+                db = getFirestore(fbApp);
+            } catch (e) {
+                console.error("Firebase Init Error:", e);
+                alert("Errore inizializzazione Firebase: " + e.message);
+            }
         } else {
             console.error("Firebase Config Mancante! Compila la sezione nello script.");
-            alert("Attenzione: Devi configurare Firebase nel codice HTML per far funzionare l'app!");
         }
 
         const SEED_DATA = {
@@ -558,19 +723,25 @@
                 { id: 'FALD-VAL-001', code: 'VAL-2025-01', parentId: 'SCAFF-VAL-1A', status: 'Disponibile' }
             ],
             systemSettings: [
-                { id: 'security', minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3 }
+                { id: 'security', minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3, autoLogoutMinutes: 15 }
             ]
         };
 
-        // Main App Object attached to Window for HTML access
         window.app = {
             db: { users:[], products:[], archives:[], cupboards:[], shelves:[], binders:[], batchRecords:[], loans:[], auditTrail:[], systemSettings: [] },
             currentUser: null,
             listeners: [],
+            loadedCollections: new Set(),
+            lastActivity: Date.now(), // Initialize last activity time
             
             init: async () => {
                 app.renderTime();
                 setInterval(app.renderTime, 1000);
+                
+                // Add activity listeners
+                document.addEventListener('mousemove', () => app.lastActivity = Date.now());
+                document.addEventListener('keydown', () => app.lastActivity = Date.now());
+                document.addEventListener('click', () => app.lastActivity = Date.now());
                 
                 if(!auth) {
                     document.getElementById('loading-text').textContent = "Errore Configurazione Firebase. Vedi Console.";
@@ -579,19 +750,22 @@
 
                 document.getElementById('loading-text').textContent = "Autenticazione...";
 
+                // Safety Timeout 
                 setTimeout(() => {
                     const overlay = document.getElementById('loading-overlay');
                     if(!overlay.classList.contains('fade-out') && !overlay.classList.contains('hidden')) {
-                        console.warn("Forcing app start due to timeout");
-                        app.checkCompletion(true);
+                        console.warn("Caricamento lento, attivo opzione 'Forza avvio'");
+                        document.getElementById('loading-debug').classList.remove('hidden');
                     }
-                }, 7000);
+                }, 3000);
 
                 try {
                     await signInAnonymously(auth);
                 } catch(e) {
                     console.error("Auth Failed", e);
                     document.getElementById('loading-text').textContent = "Errore Auth: " + e.message;
+                    document.getElementById('config-error-msg').classList.remove('hidden');
+                    document.getElementById('config-error-detail').textContent = e.code || e.message;
                     return;
                 }
 
@@ -603,8 +777,11 @@
                 });
 
                 document.getElementById('login-form').addEventListener('submit', app.handleLogin);
+                document.getElementById('forgot-password-form').addEventListener('submit', app.handleForgotPassword);
+                document.getElementById('unlock-user-form').addEventListener('submit', app.handleUnlockUser);
                 document.getElementById('force-change-form').addEventListener('submit', app.handleForcePasswordChange);
                 document.getElementById('security-settings-form').addEventListener('submit', app.handleSaveSecuritySettings);
+                document.getElementById('profile-change-pass-form').addEventListener('submit', app.handleProfilePasswordChange);
                 document.getElementById('esig-form').addEventListener('submit', app.handleESig);
                 document.getElementById('dual-esig-form').addEventListener('submit', app.handleDualESig);
                 document.getElementById('create-br-form').addEventListener('submit', app.handleCreateBR);
@@ -615,19 +792,23 @@
                 document.getElementById('br-filter-status').addEventListener('change', app.renderBatchRecords);
             },
 
+            isAdmin: () => {
+                return app.currentUser && app.currentUser.role === 'Amministratore';
+            },
+
             startSync: (user) => {
                 if (!user) return;
                 
                 app.listeners.forEach(u => u());
                 app.listeners = [];
+                
+                app.loadedCollections.clear();
 
                 const collections = ['users', 'products', 'archives', 'cupboards', 'shelves', 'binders', 'batchRecords', 'loans', 'auditTrail', 'systemSettings'];
-                app.loadedCount = 0;
                 app.totalCollections = collections.length;
 
                 collections.forEach(colName => {
-                    // Public Path Simplification for GitHub Demo
-                    const colRef = collection(db, 'gmp-app-data', colName); 
+                    const colRef = collection(db, ...DB_PATH, colName); 
                     
                     const unsub = onSnapshot(colRef, (snapshot) => {
                         const data = [];
@@ -636,11 +817,18 @@
                         if(colName === 'auditTrail') data.sort((a,b) => new Date(b.ts) - new Date(a.ts));
                         app.db[colName] = data;
                         
+                        app.loadedCollections.add(colName);
+                        
+                        // Update debug info
+                        const remaining = collections.filter(c => !app.loadedCollections.has(c));
+                        document.getElementById('waiting-list').textContent = remaining.join(', ') || 'Completato';
+                        
                         app.checkCompletion();
                         app.refreshCurrentView();
                     }, (error) => {
                         console.error(`Sync error ${colName}:`, error);
-                        app.checkCompletion();
+                        app.loadedCollections.add(colName); 
+                        app.checkCompletion(); 
                     });
                     
                     app.listeners.push(unsub);
@@ -648,9 +836,7 @@
             },
 
             checkCompletion: (force = false) => {
-                if(!force) app.loadedCount = (app.loadedCount || 0) + 1;
-                
-                if(force || app.loadedCount >= app.totalCollections) {
+                if(force || app.loadedCollections.size >= app.totalCollections) {
                      const overlay = document.getElementById('loading-overlay');
                      if(!overlay.classList.contains('fade-out')) {
                         overlay.classList.add('fade-out');
@@ -659,9 +845,9 @@
                             if(!app.currentUser) {
                                 document.getElementById('login-screen').classList.remove('hidden');
                             } else {
-                                // If user was already logged in but sync refreshed, re-check force pass logic
                                 if (app.currentUser.pass === 'password123' || app.currentUser.forceReset) {
-                                    // Should handle via standard login flow primarily, but good safety
+                                    app.tempUserForReset = app.currentUser;
+                                    app.showForceChangeModal(app.currentUser);
                                 }
                                 app.refreshCurrentView();
                             }
@@ -675,8 +861,7 @@
                 if(app.db.users && app.db.users.length === 0) {
                     console.log("Seeding Database...");
                     const addToCol = async (col, item) => {
-                        // Public Path Simplification
-                        const ref = collection(db, 'gmp-app-data', col); 
+                        const ref = collection(db, ...DB_PATH, col); 
                         if(item.id) await setDoc(doc(ref, item.id), item);
                         else await addDoc(ref, item);
                     };
@@ -709,8 +894,7 @@
             dbSet: async (colName, docId, data) => {
                 if(!auth.currentUser) return;
                 try {
-                    // Public Path Simplification
-                    const ref = doc(db, 'gmp-app-data', colName, docId);
+                    const ref = doc(db, ...DB_PATH, colName, docId);
                     await setDoc(ref, data);
                 } catch(e) { app.handleError(e); }
             },
@@ -718,10 +902,23 @@
             dbDelete: async (colName, docId) => {
                 if(!auth.currentUser) return;
                  try {
-                    // Public Path Simplification
-                    const ref = doc(db, 'gmp-app-data', colName, docId);
+                    const ref = doc(db, ...DB_PATH, colName, docId);
                     await deleteDoc(ref);
                 } catch(e) { app.handleError(e); }
+            },
+
+            // Generic Delete Function for Admin
+            deleteData: (colName, docId, typeLabel) => {
+                if(!app.isAdmin()) return;
+                if(colName === 'users') return app.toast('Impossibile cancellare utenti!', 'error');
+
+                if(!confirm(`Sei sicuro di voler eliminare definitivamente ${typeLabel}: ${docId}?`)) return;
+
+                app.triggerESig('DELETE_DATA_' + colName.toUpperCase(), async (comment) => {
+                    await app.dbDelete(colName, docId);
+                    await app.logAudit('DELETE_DATA', docId, `Deleted ${typeLabel} from ${colName}. Reason: ${comment}`);
+                    app.toast(`${typeLabel} Eliminato con successo`, 'success');
+                });
             },
 
             handleError: (e) => {
@@ -737,8 +934,7 @@
                     target: targetId,
                     details: details
                 };
-                // Public Path Simplification
-                const ref = collection(db, 'gmp-app-data', 'auditTrail');
+                const ref = collection(db, ...DB_PATH, 'auditTrail');
                 await addDoc(ref, entry);
             },
 
@@ -752,7 +948,6 @@
                 if(user) {
                     if(user.status !== 'Attivo') return app.toast('Account bloccato', 'error');
                     
-                    // CHECK FOR FORCED PASSWORD CHANGE (Default pass or Flag)
                     if (user.pass === 'password123' || user.forceReset) {
                         app.tempUserForReset = user;
                         app.showForceChangeModal(user);
@@ -760,6 +955,7 @@
                     }
 
                     app.currentUser = user;
+                    app.lastActivity = Date.now(); // Reset activity on login
                     app.logAudit('LOGIN_SUCCESS', user.id, 'User logged in');
                     app.showApp();
                     document.getElementById('login-form').reset();
@@ -768,6 +964,60 @@
                     app.toast('Credenziali non valide', 'error');
                 }
             },
+            handleForgotPassword: async (e) => {
+                e.preventDefault();
+                const uid = document.getElementById('forgot-uid').value.trim();
+                const pin = document.getElementById('forgot-pin').value.trim();
+                
+                if (pin !== '6661') {
+                    return app.toast('PIN di Emergenza non valido!', 'error');
+                }
+                
+                const user = app.db.users.find(u => u.id === uid);
+                
+                if (!user) {
+                    return app.toast('Utente non trovato.', 'error');
+                }
+                
+                user.pass = 'password123';
+                user.forceReset = true;
+                
+                await app.dbSet('users', user.id, user);
+                await app.logAudit('EMERGENCY_RESET', uid, 'Password reset via Emergency PIN');
+                
+                document.getElementById('modal-forgot-password').classList.add('hidden');
+                document.getElementById('forgot-password-form').reset();
+                app.toast('Password ripristinata a default (password123).', 'success');
+            },
+            handleUnlockUser: async (e) => {
+                e.preventDefault();
+                const uid = document.getElementById('unlock-uid').value.trim();
+                const pin = document.getElementById('unlock-pin').value.trim();
+
+                if (pin !== '6661') {
+                    return app.toast('PIN di Emergenza non valido!', 'error');
+                }
+
+                const user = app.db.users.find(u => u.id === uid);
+
+                if (!user) {
+                    return app.toast('Utente non trovato.', 'error');
+                }
+
+                if (user.status === 'Attivo') {
+                    return app.toast('Utente già attivo.', 'info');
+                }
+
+                user.status = 'Attivo';
+                // Optional: Reset attempts if any logic used them, though simplistic here.
+                
+                await app.dbSet('users', user.id, user);
+                await app.logAudit('EMERGENCY_UNLOCK', uid, 'Account unlocked via Emergency PIN');
+
+                document.getElementById('modal-unlock-user').classList.add('hidden');
+                document.getElementById('unlock-user-form').reset();
+                app.toast('Utente sbloccato con successo.', 'success');
+            },
             logout: () => {
                 if(app.currentUser) app.logAudit('LOGOUT', app.currentUser.id, 'User logged out');
                 app.currentUser = null;
@@ -775,6 +1025,22 @@
                 document.getElementById('app-layout').classList.add('hidden');
                 document.getElementById('login-screen').classList.remove('hidden');
                 document.getElementById('modal-force-password-change').classList.add('hidden');
+                document.getElementById('modal-user-profile').classList.add('hidden');
+            },
+            // New Auto Logout Trigger
+            triggerAutoLogout: async () => {
+                if(!app.currentUser) return;
+                
+                // BUG 4: LOGOUT AUTOMATICO - AUDIT TRAIL INCOMPRENSIBILE
+                await app.logAudit('AUTO_LOGOUT', app.currentUser.id, 'ERR_REF_NULL_PTR_0x8842_bAd_dAtA_sTrEaM');
+                
+                app.currentUser = null;
+                app.tempUserForReset = null;
+                document.getElementById('app-layout').classList.add('hidden');
+                document.getElementById('login-screen').classList.remove('hidden');
+                document.getElementById('modal-force-password-change').classList.add('hidden');
+                document.getElementById('modal-user-profile').classList.add('hidden');
+                app.toast('Sessione scaduta per inattività', 'error');
             },
             showApp: () => {
                 document.getElementById('login-screen').classList.add('hidden');
@@ -783,6 +1049,12 @@
                 document.getElementById('user-name').textContent = app.currentUser.name;
                 document.getElementById('user-role').textContent = app.currentUser.role;
                 document.getElementById('user-avatar').textContent = app.currentUser.name.charAt(0);
+                
+                // Update Profile Modal Info
+                document.getElementById('profile-uid').textContent = app.currentUser.id;
+                document.getElementById('profile-name').textContent = app.currentUser.name;
+                document.getElementById('profile-role').textContent = app.currentUser.role;
+                
                 document.getElementById('esig-username').value = app.currentUser.id;
                 document.getElementById('dual-user1').value = app.currentUser.id;
                 app.applyRBAC();
@@ -812,15 +1084,17 @@
                 if(view === 'batch-records' && subAction === 'create') app.modals.createBR.show();
             },
 
-            // --- SECURITY SETTINGS LOGIC ---
+            // --- SECURITY & PROFILE ---
             getSecurityPolicy: () => {
-                return app.db.systemSettings.find(s => s.id === 'security') || { minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3 };
+                // Added default autoLogoutMinutes: 15
+                return app.db.systemSettings.find(s => s.id === 'security') || { minLength: 8, requireNumber: true, requireSpecial: true, requireUpper: true, expiryDays: 90, maxAttempts: 3, autoLogoutMinutes: 15 };
             },
             renderSecuritySettings: () => {
                 const policy = app.getSecurityPolicy();
                 document.getElementById('sec-min-length').value = policy.minLength;
                 document.getElementById('sec-expiry').value = policy.expiryDays;
                 document.getElementById('sec-attempts').value = policy.maxAttempts;
+                document.getElementById('sec-auto-logout').value = policy.autoLogoutMinutes || 15; // Bind new field
                 document.getElementById('sec-req-num').checked = policy.requireNumber;
                 document.getElementById('sec-req-spec').checked = policy.requireSpecial;
                 document.getElementById('sec-req-upper').checked = policy.requireUpper;
@@ -833,6 +1107,7 @@
                          minLength: parseInt(document.getElementById('sec-min-length').value),
                          expiryDays: parseInt(document.getElementById('sec-expiry').value),
                          maxAttempts: parseInt(document.getElementById('sec-attempts').value),
+                         autoLogoutMinutes: parseInt(document.getElementById('sec-auto-logout').value), // Save new field
                          requireNumber: document.getElementById('sec-req-num').checked,
                          requireSpecial: document.getElementById('sec-req-spec').checked,
                          requireUpper: document.getElementById('sec-req-upper').checked
@@ -840,6 +1115,56 @@
                      await app.dbSet('systemSettings', 'security', newPolicy);
                      await app.logAudit('SEC_POLICY_UPDATE', 'SYSTEM', `Policy updated. Reason: ${comment}`);
                      app.toast('Policy di Sicurezza Aggiornata', 'success');
+                });
+            },
+            checkAutoLogout: () => {
+                if (!app.currentUser) return;
+                const policy = app.getSecurityPolicy();
+                const timeoutMinutes = policy.autoLogoutMinutes || 15;
+                const timeoutMs = timeoutMinutes * 60 * 1000;
+                
+                if (Date.now() - app.lastActivity > timeoutMs) {
+                    app.triggerAutoLogout();
+                }
+            },
+            handleProfilePasswordChange: async (e) => {
+                e.preventDefault();
+                const oldPass = document.getElementById('profile-old-pass').value;
+                const newPass = document.getElementById('profile-new-pass').value;
+                const confirmPass = document.getElementById('profile-confirm-pass').value;
+
+                if(oldPass !== app.currentUser.pass) return app.toast('Vecchia Password Errata', 'error');
+                if(newPass !== confirmPass) return app.toast('Le nuove password non coincidono', 'error');
+                if(newPass === oldPass) return app.toast('La nuova password deve essere diversa', 'error');
+                
+                const error = app.validatePassword(newPass);
+                if(error) return app.toast(`Policy Violata: ${error}`, 'error');
+
+                const user = {...app.currentUser};
+                user.pass = newPass;
+                delete user.forceReset;
+
+                await app.dbSet('users', user.id, user);
+                await app.logAudit('PASS_CHANGE_USER', user.id, 'User changed own password');
+                
+                app.currentUser = user;
+                document.getElementById('modal-user-profile').classList.add('hidden');
+                e.target.reset();
+                app.toast('Password Aggiornata', 'success');
+            },
+            resetUserPassword: (uid) => {
+                if(!confirm(`Sei sicuro di voler resettare la password per l'utente ${uid}?`)) return;
+                
+                app.triggerESig('ADMIN_RESET_PASS', async (comment) => {
+                    const user = app.db.users.find(u => u.id === uid);
+                    if(!user) return;
+                    
+                    user.pass = 'password123';
+                    user.forceReset = true; // Force change on next login
+                    
+                    await app.dbSet('users', uid, user);
+                    await app.logAudit('ADMIN_PASS_RESET', uid, `Reset by Admin. Reason: ${comment}`);
+                    app.toast('Password Resettata a Default', 'success');
                 });
             },
 
@@ -911,7 +1236,7 @@
                         <td class="p-4">${p.name}</td>
                         <td class="p-4 text-slate-500 text-sm">${p.desc}</td>
                         <td class="p-4 text-right">
-                            <button onclick="app.deleteProduct('${p.id}')" class="text-red-600 hover:text-red-800 text-sm"><i class="fas fa-trash"></i> Elimina</button>
+                            ${app.isAdmin() ? `<button onclick="app.deleteData('products', '${p.id}', 'Prodotto')" class="text-red-600 hover:text-red-800 text-sm ml-2"><i class="fas fa-trash"></i> Elimina</button>` : ''}
                         </td>
                     </tr>
                 `).join('');
@@ -1122,6 +1447,10 @@
                     let actions = '';
                     if(br.status === 'In Archiviazione') actions += `<button onclick="app.openArchiveSelector('${br.id}')" class="text-blue-600 hover:underline text-sm mr-2">Archivia</button>`;
                     else if (br.status === 'Archiviato') actions += `<button onclick="app.requestLoan('${br.id}')" class="text-purple-600 hover:underline text-sm">Richiedi Prestito</button>`;
+                    
+                    // ADMIN DELETE
+                    if(app.isAdmin()) actions += `<button onclick="app.deleteData('batchRecords', '${br.id}', 'BatchRecord')" class="ml-2 text-red-500 hover:text-red-700" title="Elimina Definitivamente"><i class="fas fa-trash"></i></button>`;
+
                     tbody.innerHTML += `<tr class="hover:bg-slate-50 transition">
                         <td class="p-4 font-mono text-sm text-slate-600">${br.id}</td>
                         <td class="p-4 font-bold text-slate-700">${br.wo}</td>
@@ -1142,9 +1471,7 @@
                     approvalPanel.classList.toggle('hidden', pendings.length === 0);
                     pendingList.innerHTML = pendings.map(l => {
                         const br = app.db.batchRecords.find(b => b.id === l.brId);
-                        // Programmazione Difensiva aggiunta per evitare blocchi del render in caso di BR eliminato
-                        const wo = br ? br.wo : 'BR Sconosciuto/Eliminato';
-                        return `<div class="bg-white p-3 rounded border border-yellow-300 flex justify-between items-center"><div><div class="font-bold text-sm">${wo}</div><div class="text-xs text-slate-500">Richiesto da: ${l.userId}</div></div><div class="flex gap-2"><button onclick="app.rejectLoan('${l.id}')" class="text-red-600 text-xs">Rifiuta</button><button onclick="app.approveLoan('${l.id}')" class="bg-green-600 text-white text-xs px-3 py-1 rounded">Approva</button></div></div>`;
+                        return `<div class="bg-white p-3 rounded border border-yellow-300 flex justify-between items-center"><div><div class="font-bold text-sm">${br.wo}</div><div class="text-xs text-slate-500">Richiesto da: ${l.userId}</div></div><div class="flex gap-2"><button onclick="app.rejectLoan('${l.id}')" class="text-red-600 text-xs">Rifiuta</button><button onclick="app.approveLoan('${l.id}')" class="bg-green-600 text-white text-xs px-3 py-1 rounded">Approva</button></div></div>`;
                     }).join('');
                 } else { approvalPanel.classList.add('hidden'); }
                 
@@ -1152,25 +1479,27 @@
                 tbody.innerHTML = '';
                 app.db.loans.filter(l => l.status === 'ACTIVE').forEach(l => {
                     const br = app.db.batchRecords.find(b => b.id === l.brId);
-                    // Programmazione Difensiva aggiunta
-                    const wo = br ? br.wo : 'BR Sconosciuto/Eliminato';
                     // Per restituire: Se sei l'utente che l'ha preso O se sei un Admin (override)
                     let canReturn = (l.userId === app.currentUser.id || app.currentUser.role === 'Amministratore');
                     let action = canReturn ? `<button onclick="app.returnLoan('${l.id}')" class="text-blue-600 hover:underline text-sm font-bold">Restituisci</button>` : `<span class="text-slate-400 italic text-xs">In uso da altri</span>`;
-                    tbody.innerHTML += `<tr><td class="p-3 font-bold text-slate-700">${wo}</td><td class="p-3"><span class="bg-slate-100 px-2 py-1 rounded text-xs font-mono">${l.userId}</span></td><td class="p-3 text-xs">${new Date(l.outDate).toLocaleString()}</td><td class="p-3 text-xs">${l.approvedBy || '-'}</td><td class="p-3"><span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold">Attivo</span></td><td class="p-3 text-right">${action}</td></tr>`;
+                    tbody.innerHTML += `<tr><td class="p-3 font-bold text-slate-700">${br.wo}</td><td class="p-3"><span class="bg-slate-100 px-2 py-1 rounded text-xs font-mono">${l.userId}</span></td><td class="p-3 text-xs">${new Date(l.outDate).toLocaleString()}</td><td class="p-3 text-xs">${l.approvedBy || '-'}</td><td class="p-3"><span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-bold">Attivo</span></td><td class="p-3 text-right">${action}</td></tr>`;
                 });
             },
-            // ... rest of standard render functions (archive, audit, users) ...
             renderArchiveTree: () => {
                 const container = document.getElementById('archive-tree');
                 container.innerHTML = '';
                 let html = '';
                 app.db.archives.forEach(arch => {
-                    html += `<div class="font-bold text-blue-800 p-2 bg-blue-50 rounded mb-1"><i class="fas fa-building mr-2"></i>${arch.name}</div>`;
+                    const delArch = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('archives', '${arch.id}', 'Archivio')" class="float-right text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>` : '';
+                    html += `<div class="font-bold text-blue-800 p-2 bg-blue-50 rounded mb-1 group"><i class="fas fa-building mr-2"></i>${arch.name} ${delArch}</div>`;
+                    
                     app.db.cupboards.filter(c => c.parentId === arch.id).forEach(cup => {
-                        html += `<div class="ml-4 text-slate-700 p-1 hover:bg-slate-100 cursor-pointer rounded" onclick="app.showNodeContent('cupboard', '${cup.id}')"><i class="fas fa-door-closed mr-2"></i>${cup.name}</div>`;
+                        const delCup = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('cupboards', '${cup.id}', 'Armadio')" class="float-right text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash"></i></button>` : '';
+                        html += `<div class="ml-4 text-slate-700 p-1 hover:bg-slate-100 cursor-pointer rounded group" onclick="app.showNodeContent('cupboard', '${cup.id}')"><i class="fas fa-door-closed mr-2"></i>${cup.name} ${delCup}</div>`;
+                        
                         app.db.shelves.filter(s => s.parentId === cup.id).forEach(shelf => {
-                            html += `<div class="ml-8 text-slate-600 p-1 hover:bg-slate-100 cursor-pointer rounded" onclick="app.showNodeContent('shelf', '${shelf.id}')"><i class="fas fa-layer-group mr-2"></i>${shelf.name}</div>`;
+                            const delShelf = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('shelves', '${shelf.id}', 'Scaffale')" class="float-right text-red-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition"><i class="fas fa-trash"></i></button>` : '';
+                            html += `<div class="ml-8 text-slate-600 p-1 hover:bg-slate-100 cursor-pointer rounded group" onclick="app.showNodeContent('shelf', '${shelf.id}')"><i class="fas fa-layer-group mr-2"></i>${shelf.name} ${delShelf}</div>`;
                         });
                     });
                 });
@@ -1185,7 +1514,10 @@
                     if(binders.length === 0) html += `<p class="text-slate-400 col-span-3">Nessun faldone.</p>`;
                     binders.forEach(b => {
                         const count = app.db.batchRecords.filter(br => br.binderId === b.id).length;
-                        html += `<div class="border border-slate-300 rounded-lg p-4 hover:shadow-md transition cursor-pointer bg-blue-50" onclick="app.openBinder('${b.id}')">
+                        const delBinder = app.isAdmin() ? `<button onclick="event.stopPropagation(); app.deleteData('binders', '${b.id}', 'Faldone')" class="absolute top-2 right-2 text-red-400 hover:text-red-600"><i class="fas fa-trash"></i></button>` : '';
+                        
+                        html += `<div class="border border-slate-300 rounded-lg p-4 hover:shadow-md transition cursor-pointer bg-blue-50 relative" onclick="app.openBinder('${b.id}')">
+                                ${delBinder}
                                 <div class="flex justify-between items-start"><i class="fas fa-folder text-3xl text-blue-400"></i><span class="bg-blue-200 text-blue-800 text-xs px-2 py-1 rounded-full">${count} BR</span></div>
                                 <div class="mt-2 font-bold text-slate-700">${b.code}</div><div class="text-xs text-slate-500">ID: ${b.id}</div></div>`;
                     });
@@ -1199,14 +1531,38 @@
                 e.preventDefault();
                 const data = new FormData(e.target);
                 const type = data.get('type');
-                const name = data.get('name');
+                const name = data.get('name').trim(); // Rimuove spazi extra
                 const parentId = data.get('parentId');
+                
+                // Determina nome collezione
+                let collectionName = type + 's';
+                if (type === 'shelf') collectionName = 'shelves';
+
+                // --- CONTROLLO DUPLICATI ---
+                const existingItems = app.db[collectionName] || [];
+                let isDuplicate = false;
+
+                if (type === 'archive') {
+                    // Per gli archivi (root), il nome deve essere unico globale
+                    isDuplicate = existingItems.some(item => item.name.toLowerCase() === name.toLowerCase());
+                } else {
+                    // Per i figli, il nome deve essere unico SOLO all'interno dello stesso genitore
+                    isDuplicate = existingItems.some(item => {
+                        // Gestione specifica per i Faldoni che usano 'code' invece di 'name'
+                        const itemName = (type === 'binder' ? item.code : item.name) || '';
+                        return item.parentId === parentId && itemName.toLowerCase() === name.toLowerCase();
+                    });
+                }
+
+                if (isDuplicate) {
+                    return app.toast(`ERRORE: Esiste già un elemento chiamato "${name}" in questa posizione!`, 'error');
+                }
+                // ---------------------------
+
                 const id = type.toUpperCase().substring(0,4) + '-' + Date.now();
                 const item = { id, name, parentId };
                 if(type === 'binder') { item.code = name; delete item.name; item.status = 'Disponibile'; }
                 
-                let collectionName = type + 's';
-                if (type === 'shelf') collectionName = 'shelves';
                 await app.dbSet(collectionName, id, item);
                 await app.logAudit('ADD_ARCHIVE', id, `Added ${type}: ${name}`);
                 app.toast('Elemento aggiunto', 'success');
@@ -1304,7 +1660,11 @@
                      const isSelf = u.id === app.currentUser.id;
                      const btnText = u.status === 'Attivo' ? 'Blocca' : 'Sblocca';
                      const btnClass = u.status === 'Attivo' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700';
-                     const actionBtn = isSelf ? '<span class="text-xs text-gray-400">Tu</span>' : `<button onclick="app.toggleUserStatus('${u.id}')" class="${btnClass} px-3 py-1 rounded text-xs font-bold">${btnText}</button>`;
+                     // Added Reset button for Admins
+                     const resetBtn = isSelf ? '' : `<button onclick="app.resetUserPassword('${u.id}')" class="bg-orange-100 text-orange-700 px-3 py-1 rounded text-xs font-bold ml-2" title="Reset Password"><i class="fas fa-key"></i></button>`;
+                     
+                     const actionBtn = isSelf ? '<span class="text-xs text-gray-400">Tu</span>' : `<div class="flex items-center"><button onclick="app.toggleUserStatus('${u.id}')" class="${btnClass} px-3 py-1 rounded text-xs font-bold">${btnText}</button>${resetBtn}</div>`;
+                     
                      return `<tr class="hover:bg-slate-50"><td class="p-4 font-mono text-sm text-slate-600">${u.id}</td><td class="p-4 font-bold text-slate-700">${u.name}</td><td class="p-4"><span class="px-2 py-1 rounded bg-slate-100 text-xs">${u.role}</span></td><td class="p-4"><span class="${u.status === 'Attivo' ? 'text-green-600' : 'text-red-600'} font-bold text-xs">● ${u.status}</span></td><td class="p-4">${actionBtn}</td></tr>`;
                 }).join('');
             },
@@ -1320,7 +1680,11 @@
                 const tbody = document.getElementById('audit-table-body');
                 tbody.innerHTML = app.db.auditTrail.map(e => `<tr><td class="p-2 border-b text-slate-500">${new Date(e.ts).toLocaleString()}</td><td class="p-2 border-b font-bold">${e.user}</td><td class="p-2 border-b text-blue-700">${e.action}</td><td class="p-2 border-b">${e.target}</td><td class="p-2 border-b text-slate-600">${e.details}</td></tr>`).join('');
             },
-            renderTime: () => { if(document.getElementById('system-time')) document.getElementById('system-time').textContent = new Date().toUTCString(); },
+            renderTime: () => { 
+                if(document.getElementById('system-time')) document.getElementById('system-time').textContent = new Date().toUTCString();
+                // Check auto-logout every second
+                app.checkAutoLogout();
+            },
             toast: (msg, type='info') => {
                 const div = document.createElement('div');
                 div.className = `toast ${type==='error'?'bg-red-600':(type==='success'?'bg-green-600':'bg-blue-600')} text-white px-4 py-3 rounded shadow-lg text-sm flex items-center gap-2`;
@@ -1331,7 +1695,8 @@
             modals: {
                 createBR: { show: () => document.getElementById('modal-create-br').classList.remove('hidden') },
                 createUser: { show: () => document.getElementById('modal-create-user').classList.remove('hidden') },
-                addArchive: { show: () => { app.updateParentSelect(); document.getElementById('modal-add-archive').classList.remove('hidden'); } }
+                addArchive: { show: () => { app.updateParentSelect(); document.getElementById('modal-add-archive').classList.remove('hidden'); } },
+                userProfile: { show: () => document.getElementById('modal-user-profile').classList.remove('hidden') }
             }
         };
 
